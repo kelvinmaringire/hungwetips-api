@@ -1,0 +1,54 @@
+{
+  "training_date": "2026-01-19",
+  "training_timestamp": "2026-01-18T03:11:57.103384",
+  "training_samples": 72,
+  "models_trained": [
+    "outcome",
+    "score",
+    "btts",
+    "home_draw_no_bet",
+    "away_draw_no_bet",
+    "total_over_1.5",
+    "total_under_3.5",
+    "home_team_over_0.5",
+    "away_team_over_0.5"
+  ],
+  "metrics": {
+    "outcome": {
+      "accuracy": 0.4666666666666667,
+      "logloss": 0.933708883577267
+    },
+    "score": {
+      "mae": 1.2168787879502754,
+      "rmse": 1.4431949081773963
+    },
+    "btts": {
+      "accuracy": 0.5333333333333333,
+      "logloss": 0.6957210419331251
+    },
+    "home_draw_no_bet": {
+      "accuracy": 0.6666666666666666,
+      "logloss": 0.5975164465106264
+    },
+    "away_draw_no_bet": {
+      "accuracy": 0.6666666666666666,
+      "logloss": 0.5478106227875194
+    },
+    "total_over_1.5": {
+      "accuracy": 0.8,
+      "logloss": 0.48971520486383346
+    },
+    "total_under_3.5": {
+      "accuracy": 0.7333333333333333,
+      "logloss": 0.5688900733086484
+    },
+    "home_team_over_0.5": {
+      "accuracy": 0.7333333333333333,
+      "logloss": 0.5703152175853758
+    },
+    "away_team_over_0.5": {
+      "accuracy": 0.8,
+      "logloss": 0.5008359906598743
+    }
+  }
+}

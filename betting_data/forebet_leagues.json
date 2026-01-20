@@ -1,0 +1,79 @@
+{
+  "England": [
+    "football-tips-and-predictions-for-england/premier-league",
+    "football-tips-and-predictions-for-england/efl-cup",
+    "football-tips-and-predictions-for-england/championship",
+    "football-tips-and-predictions-for-england/efl-trophy",
+    "football-tips-and-predictions-for-england/league-one",
+    "football-tips-and-predictions-for-england/fa-cup",
+    "football-tips-and-predictions-for-england/national-league",
+    "football-tips-and-predictions-for-england/league-two"
+  ],
+  "Spain": [
+    "football-tips-and-predictions-for-spain/primera-division",
+    "football-tips-and-predictions-for-spain/copa-del-rey",
+    "football-tips-and-predictions-for-spain/segunda-division",
+    "football-tips-and-predictions-for-spain/super-copa",
+    "football-tips-and-predictions-for-spain/primera-division-rfef",
+    "football-tips-and-predictions-for-spain/primera-division-women"
+  ],
+  "Germany": [
+    "football-tips-and-predictions-for-germany/bundesliga",
+    "football-tips-and-predictions-for-germany/2-bundesliga",
+    "football-tips-and-predictions-for-germany/dfb-pokal",
+    "football-tips-and-predictions-for-germany/3-liga"
+  ],
+  "International_Clubs": [
+    "predictions-europe/uefa-champions-league",
+    "predictions-europe/uefa-europa-league",
+    "predictions-africa/caf-champions-league",
+    "predictions-europe/uefa-europa-conference-league",
+    "predictions-europe/champions-league-women",
+    "predictions-asia/afc-cup",
+    "predictions-africa/caf-confederations-cup",
+    "south-america/copa-sudamericana",
+    "south-america/copa-libertadores",
+    "predictions-north-central-america/concacaf-champions-league",
+    "predictions-asia/afc-champions-league"
+  ],
+  "Internationals": [
+    "predictions-world/world-cup",
+    "predictions-africa/cup-of-nations"
+  ],
+  "Italy": [
+    "football-tips-and-predictions-for-italy/serie-a",
+    "football-tips-and-predictions-for-italy/coppa-italia",
+    "football-tips-and-predictions-for-italy/serie-b",
+    "football-tips-and-predictions-for-italy/serie-a-women",
+    "football-tips-and-predictions-for-italy/coppa-italia-women",
+    "football-tips-and-predictions-for-italy/serie-c",
+    "football-tips-and-predictions-for-italy/primavera-1"
+  ],
+  "France": [
+    "football-tips-and-predictions-for-france/ligue1",
+    "football-tips-and-predictions-for-france/coupe-de-france",
+    "football-tips-and-predictions-for-france/ligue2",
+    "football-tips-and-predictions-for-france/national",
+    "football-tips-and-predictions-for-france/division-1-women"
+  ],
+  "South_Africa": [
+    "football-tips-and-predictions-for-south-africa/premier-league",
+    "football-tips-and-predictions-for-south-africa/national-first-division"
+  ],
+  "Portugal": [
+    "football-tips-and-predictions-for-portugal/liga-portugal",
+    "football-tips-and-predictions-for-portugal/taca-de-portugal",
+    "football-tips-and-predictions-for-portugal/liga-portugal-2",
+    "football-tips-and-predictions-for-portugal/liga-3",
+    "football-tips-and-predictions-for-portugal/campeonato-de-portugal",
+    "football-tips-and-predictions-for-portugal/liga-revelacao-u23"
+  ],
+  "Netherlands": [
+    "football-tips-and-predictions-for-netherlands/eredivisie",
+    "football-tips-and-predictions-for-netherlands/knvb-beker",
+    "football-tips-and-predictions-for-netherlands/erstedivision",
+    "football-tips-and-predictions-for-netherlands/derde-divisie",
+    "football-tips-and-predictions-for-netherlands/eredivisie-women",
+    "football-tips-and-predictions-for-netherlands/knvb-beker-women"
+  ]
+}

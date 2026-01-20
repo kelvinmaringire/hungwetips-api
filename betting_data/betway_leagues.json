@@ -1,0 +1,79 @@
+{
+  "England": [
+    "england_premier-league",
+    "england_efl-cup",
+    "england_championship",
+    "england_efl-trophy",
+    "england_league-one",
+    "england_fa-cup",
+    "england_national-league",
+    "england_league-two"
+  ],
+  "Spain": [
+    "spain_la-liga",
+    "spain_copa-del-rey",
+    "spain_laliga-2",
+    "spain_supercopa",
+    "spain_primera-federacion",
+    "spain_primera-federacion-women"
+  ],
+  "Germany": [
+    "germany_bundesliga",
+    "germany_2-bundesliga",
+    "germany_dfb-pokal",
+    "germany_3-liga"
+  ],
+  "International_Clubs": [
+    "international-clubs_uefa-champions-league",
+    "international-clubs_uefa-europa-league",
+    "international-clubs_caf-champions-league",
+    "international-clubs_uefa-conference-league",
+    "international-clubs_uefa-champions-league-women",
+    "international-clubs_afc-champions-league-two",
+    "international-clubs_caf-confederations-cup",
+    "international-clubs_conmebol-sudamericana",
+    "international-clubs_conmebol-libertadores",
+    "international-clubs_concacaf-champions-cup",
+    "international-clubs_afc-challenge-league"
+  ],
+  "Internationals": [
+    "international_fifa-world-cup",
+    "international_africa-cup-of-nations"
+  ],
+  "Italy": [
+    "italy_serie-a",
+    "italy_coppa-italia",
+    "italy_serie-b",
+    "italy_serie-a-women",
+    "italy_coppa-italia-women",
+    "italy_coppa-italia-serie-c",
+    "italy_primavera-1"
+  ],
+  "France": [
+    "france_ligue-1",
+    "france_coupe-de-france",
+    "france_ligue-2",
+    "france_national",
+    "france_premiere-ligue-women"
+  ],
+  "South_Africa": [
+    "south-africa_premiership",
+    "south-africa_championship"
+  ],
+  "Portugal": [
+    "portugal_liga-portugal",
+    "portugal_taca-de-portugal",
+    "portugal_liga-portugal-2",
+    "portugal_liga-portugal-3",
+    "portugal_campeonato-de-portugal",
+    "portugal_u23-liga-revelacao"
+  ],
+  "Netherlands": [
+    "netherlands_eredivisie",
+    "netherlands_knvb-beker",
+    "netherlands_eerste-divisie",
+    "netherlands_derde-divisie",
+    "netherlands_eredivisie-women",
+    "netherlands_knvb-beker-women"
+  ]
+}
