@@ -27,7 +27,8 @@ class BetwayForebetMatcher:
         # Remove common suffixes and normalize
         normalized = team_name.strip()
         # Remove common suffixes
-        suffixes = [" FC", " FC.", " F.C.", " United", " City", " Town", " Wanderers"]
+        suffixes = [" FC"," FC."," F.C."," AFC"," A.F.C."," CF"," C.F."," CD"," C.D."," UD"," U.D."," SD"," S.D."," AC"," A.C."," AS"," A.S."," SC"," S.C."," SV"," VfB"," VfL"," FK"," NK"," SK"]
+
         for suffix in suffixes:
             if normalized.endswith(suffix):
                 normalized = normalized[:-len(suffix)].strip()
@@ -216,6 +217,16 @@ class BetwayForebetMatcher:
         output_path = os.path.join(self.data_dir, output_filename)
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(combined_data, f, indent=2, ensure_ascii=False)
+        
+        # Also save to database
+        try:
+            from datetime import datetime
+            from betting_engine.importers import import_combined_matches
+            date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+            db_result = import_combined_matches(date_obj, combined_data)
+            print(f"Database: Created {db_result['created']}, Updated {db_result['updated']}")
+        except Exception as e:
+            print(f"⚠ Database save failed: {str(e)}")
         
         return output_path
 

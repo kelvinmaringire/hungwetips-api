@@ -1,0 +1,103 @@
+services:
+  web:
+    build: .  # Build Dockerfile from current directory
+    container_name: hungwetips_web
+    image: 7612/hungwetips-backend:0.1.0
+    ports:
+      - "8000:8000"   # 👈 Map container port 8000 to host port 8000
+    # Mount volumes
+    volumes:
+      - .:/app                    # Mount project code for live development (hot reload)
+      - hungwetips_static:/app/static  # Persistent storage for static files
+      - hungwetips_media:/app/media    # Persistent storage for uploaded media
+    env_file:
+      - .env                       # Load environment variables from .env file
+    depends_on:
+      db:
+        condition: service_healthy # Wait for DB to be healthy before starting web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.hungwetips_websecure.tls=true"
+      - "traefik.http.routers.hungwetips_websecure.tls.certresolver=cloudflare"
+      - "traefik.http.routers.hungwetips_websecure.entrypoints=websecure"
+      - "traefik.http.routers.hungwetips_websecure.rule=Host(`databet.co.za`)"
+      - "traefik.http.services.hungwetips.loadbalancer.server.port=8000"
+    restart: unless-stopped         # Always restart unless container is stopped manually   
+    networks:
+      - hungwetips_net     
+
+  db:
+    image: postgis/postgis:17-3.5  # PostgreSQL 17 with PostGIS 3.5
+    container_name: hungwetips_db
+    # Persistent volume to keep DB data even if container is removed
+    volumes:
+      - hungwetips_db:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}  # Loaded from .env
+      POSTGRES_USER: ${POSTGRES_USER}          # Loaded from .env
+      POSTGRES_DB: ${POSTGRES_DB}              # Loaded from .env
+    # Healthcheck to ensure DB is ready before web starts
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s        # Check every 10 seconds
+      retries: 5           # Maximum 5 retries before marking as unhealthy
+      start_period: 30s    # Wait 30 seconds before starting health checks
+      timeout: 10s         # Max 10 seconds per health check
+    restart: unless-stopped  # Restart DB if it crashes   
+    networks:
+      - hungwetips_net     
+      
+  nginx:
+    image: nginx:alpine
+    container_name: hungwetips_nginx
+    volumes:
+      - hungwetips_static:/var/www/static:ro
+      - hungwetips_media:/var/www/media:ro
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.hungwetips_nginx.tls=true"
+      - "traefik.http.routers.hungwetips_nginx.tls.certresolver=cloudflare"
+      - "traefik.http.routers.hungwetips_nginx.entrypoints=websecure"
+      - "traefik.http.routers.hungwetips_nginx.rule=Host(`databet.co.za`) && (PathPrefix(`/static`) || PathPrefix(`/media`))"
+      - "traefik.http.routers.hungwetips_nginx.priority=100"
+      - "traefik.http.services.hungwetips_nginx.loadbalancer.server.port=80"
+    depends_on:
+      - web
+    restart: unless-stopped
+    networks:
+      - hungwetips_net
+
+  traefik:
+    image: traefik:v3.6
+    container_name: hungwetips_traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    environment:
+      - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}  
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock  
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro 
+      - ./data/certs/:/var/traefik/certs/:rw
+    restart: unless-stopped      
+    networks:
+      - hungwetips_net     
+
+# Define named volumes
+volumes:
+  hungwetips_db:    # Stores PostgreSQL data persistently
+  hungwetips_static:  # Stores static files persistently
+  hungwetips_media:   # Stores uploaded media persistently
+
+networks:
+  hungwetips_net: 
+    external: true
+  
+

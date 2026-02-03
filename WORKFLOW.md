@@ -11,7 +11,6 @@ This document outlines the recommended order of operations for running the betti
 python manage.py run_workflow
 
 # Skip optional steps
-python manage.py run_workflow --skip-training  # Use existing models
 python manage.py run_workflow --skip-betting    # Don't place bets automatically
 python manage.py run_workflow --skip-merge      # Skip merging yesterday's results
 
@@ -22,7 +21,7 @@ python manage.py run_workflow --date 2026-01-16
 python manage.py run_workflow --stop-on-error
 
 # Combine options
-python manage.py run_workflow --skip-training --skip-betting
+python manage.py run_workflow --skip-betting --skip-merge
 ```
 
 This command will:
@@ -232,39 +231,79 @@ python manage.py predict_matches --model btts
 
 ---
 
-### Step 7: Automate Betting
-**Command:** `python manage.py automate_betting`
+### Step 5: Select Markets
+**Command:** `python manage.py market_selector`
 
-**Purpose:** Automatically places bets on Betway based on ML predictions with Double Chance and Team Over 0.5 markets
+**Purpose:** Selects betting markets based on odds thresholds and Forebet predictions
 
-**Output:** 
-- Places bets via browser automation
-- Saves betting tickets to `betting_data/betting_tickets_YYYY-MM-DD.json`
+**Output:** `betting_data/market_selectors_YYYY-MM-DD.json`
 
 **What it does:**
-- Reads prediction data from `predictions_YYYY-MM-DD.json` or `combined_YYYY-MM-DD.json`
-- Filters bets using ML values and probabilities:
-  - Double Chance: `ml_home_dnb_value = 1` or `ml_away_dnb_value = 1` with probability ≥ 0.6
-  - Team Over 0.5: `ml_home_over_05_value = 1` or `ml_away_over_05_value = 1` with probability ≥ 0.6
-- Groups bets into tickets (up to 3 selections per ticket)
-- Navigates to Betway and places accumulator bets
-- Uses browser automation (Playwright) to interact with Betway website
-- Logs comprehensive ticket information for analysis
+- Loads combined tips & odds from `combined_YYYY-MM-DD.json`
+- Applies betting conditions based on odds thresholds and Forebet predictions:
+  - **Home Over 0.5:** `home_team_over_0.5 >= 1.25` and Forebet predicts home team scores ≥1
+  - **Away Over 0.5:** `away_team_over_0.5 >= 1.30` and Forebet predicts away team scores ≥2
+  - **Home Draw:** `home_draw_odds >= 1.35` and Forebet probability (home + draw) > 70%
+  - **Away Draw:** `away_draw_odds >= 1.30` and Forebet probability (away + draw) > 70%
+  - **Over 1.5 Goals:** `total_over_1.5 >= 1.35` and Forebet predicts total goals > 2
+- Flags matches with boolean indicators (`home_over_bet`, `away_over_bet`, `home_draw_bet`, `away_draw_bet`, `over_1_5_bet`)
+- Creates market selector file with all matches and their betting flags
 
-**When to run:** After Step 6, when you're ready to place bets
+**When to run:** After Step 3 (match_betway_forebet), before placing bets
+
+**Options:**
+```bash
+# Custom date
+python manage.py market_selector --date 2026-01-25
+
+# Custom output filename
+python manage.py market_selector --date 2026-01-25 --output custom_selectors.json
+```
+
+**Requirements:**
+- Combined file from Step 3 must exist
+- File must contain Forebet predictions and Betway odds
+
+---
+
+### Step 6: Automate Betting
+**Command:** `python manage.py automate_betting`
+
+**Purpose:** Automatically places single bets on Betway based on market selectors
+
+**Output:** 
+- Places bets via browser automation (one bet at a time)
+- Saves bet information to `betting_data/single_bets_YYYY-MM-DD.json`
+
+**What it does:**
+- Reads market selector data from `market_selectors_YYYY-MM-DD.json`
+- Extracts bets based on boolean flags:
+  - `home_over_bet` → Home Team Over 0.5 Goals
+  - `away_over_bet` → Away Team Over 0.5 Goals
+  - `home_draw_bet` → Home or Draw (Double Chance)
+  - `away_draw_bet` → Away or Draw (Double Chance)
+  - `over_1_5_bet` → Total Goals Over 1.5
+- Places each bet individually (single bets, not accumulators)
+- Confirms each bet immediately after placing
+- Uses browser automation (Playwright) to interact with Betway website
+- Logs comprehensive bet information with status (placed/failed)
+
+**When to run:** After Step 5 (market_selector), when you're ready to place bets
 
 **Options:**
 ```bash
 # Use specific date
-python manage.py automate_betting --date 2026-01-15
+python manage.py automate_betting --date 2026-01-25
 ```
 
 **Requirements:**
 - Betway account logged in
-- Prediction file with ML values and probabilities
+- Market selector file must exist
 - Browser automation configured
 
 **⚠️ Warning:** This command will place real bets. Test thoroughly before using with real money!
+
+**Note:** This workflow uses market selectors (based on odds thresholds and Forebet predictions) instead of ML predictions. For ML-based betting, use the prediction workflow (Steps 5-6 in the ML workflow section).
 
 ---
 
@@ -288,12 +327,35 @@ python manage.py match_betway_forebet
 # 4. Merge yesterday's results (for training data)
 python manage.py merge_yesterday_results
 
-# 5. Train models (on all historical data) and make predictions (one command!)
-python manage.py predict_matches --model all
+# 5. Select markets based on odds thresholds and Forebet predictions
+python manage.py market_selector
 
-# 6. Place bets (if automated)
+# 6. Place bets (if automated) - uses market selectors for single bets
 python manage.py automate_betting
 ```
+
+**Note:** This workflow uses market selectors (odds thresholds + Forebet predictions) for betting. For ML-based predictions and betting, see the ML workflow section below.
+
+---
+
+## 🤖 ML-Based Workflow (Alternative)
+
+If you prefer to use ML predictions instead of market selectors:
+
+```bash
+# Steps 1-4 are the same
+python manage.py scrape_forebet
+python manage.py scrape_betway
+python manage.py match_betway_forebet
+python manage.py merge_yesterday_results
+
+# ML-specific steps
+python manage.py train_model --model all  # Optional: train separately
+python manage.py predict_matches --model all  # Trains automatically if Step 5 skipped
+python manage.py automate_betting  # Uses predictions instead of market selectors
+```
+
+**Difference:** ML workflow uses trained models to predict value bets, while market selector workflow uses simple rules based on odds thresholds and Forebet predictions.
 
 ### Next Day (After Matches)
 ```bash
@@ -314,7 +376,7 @@ python manage.py train_model --model all
 | 2 | `scrape_betway` | Daily | None |
 | 3 | `match_betway_forebet` | Daily | Steps 1, 2 |
 | 4 | `merge_yesterday_results` | Daily | Previous day's data |
-| 5 | `predict_matches` | Daily | Steps 3, 4 (trains on all historical data, then predicts) |
+| 5 | `market_selector` | Daily | Step 3 |
 | 6 | `automate_betting` | Daily | Step 5 |
 
 ---

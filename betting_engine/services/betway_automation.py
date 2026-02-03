@@ -528,33 +528,214 @@ class BetwayAutomation:
             traceback.print_exc()
             return False
 
-    def place_bets_for_ticket(self, page, ticket, market_type):
-        """Place all bets for a single ticket"""
-        print(f"\n  Placing bets for ticket {ticket['ticket_id'][:8]}...")
-        print(f"    Selections: {len(ticket['selections'])}")
-        print(f"    Combined odds: {ticket['combined_odds']}")
+    def place_over_15_bet(self, page, selection):
+        """Place a single over 1.5 goals bet"""
+        game_url = selection.get('game_url')
+        game = selection.get('game')
         
-        placed_count = 0
-        for i, selection in enumerate(ticket['selections'], 1):
-            print(f"\n    [{i}/{len(ticket['selections'])}] {selection.get('team')} @ {selection.get('odds')}")
-            
-            if market_type == 'double_chance':
-                success = self.place_double_chance_bet(page, selection)
-            elif market_type == 'team_over_05':
-                success = self.place_team_over_05_bet(page, selection)
-            else:
-                print(f"    ✗ Unknown market type: {market_type}")
-                success = False
-            
-            if success:
-                placed_count += 1
-                print(f"    ✓ Bet {i} placed successfully")
-            else:
-                print(f"    ✗ Bet {i} failed")
+        if not game_url:
+            print(f"    ✗ No game URL for {selection.get('team')}")
+            return False
         
-        ticket['status'] = 'placed' if placed_count == len(ticket['selections']) else 'partial'
-        ticket['placed_count'] = placed_count
-        return placed_count == len(ticket['selections'])
+        try:
+            print(f"    Navigating to: {game_url}")
+            page.goto(game_url, timeout=60000, wait_until="domcontentloaded")
+            time.sleep(2)
+            
+            # Wait for markets to load
+            page.wait_for_selector("div.flex.flex-col.gap-3", timeout=10000)
+            time.sleep(1)
+            
+            bet_clicked = False
+            
+            # Find Total Goals market
+            try:
+                all_markets = page.locator("details").all()
+                for market in all_markets:
+                    try:
+                        summary_text = market.locator("summary").inner_text().strip()
+                        
+                        # Look for Total Goals market (not team-specific, not half-specific)
+                        if "Total" in summary_text and "Goals" in summary_text and "1st Half" not in summary_text and "2nd Half" not in summary_text:
+                            # Check if it's not a team-specific total
+                            home_team = (game.get('home_team') or '').lower()
+                            away_team = (game.get('away_team') or '').lower()
+                            summary_lower = summary_text.lower()
+                            
+                            # Skip if it contains team names (team-specific total)
+                            if home_team and home_team in summary_lower:
+                                continue
+                            if away_team and away_team in summary_lower:
+                                continue
+                            
+                            print(f"    ✓ Found Total Goals market")
+                            # Total Goals market typically has multiple options in a grid
+                            # Look for Over (1.5) option
+                            odds_items = market.locator("div.flex.items-center.justify-between").all()
+                            
+                            for item in odds_items:
+                                try:
+                                    label_div = item.locator("div").first
+                                    if label_div.count() > 0:
+                                        item_text = label_div.inner_text().strip()
+                                        # Match "Over (1.5)" or "Over 1.5" or similar
+                                        if "Over" in item_text and ("1.5" in item_text or "(1.5)" in item_text):
+                                            print(f"    ✓ Found Over (1.5) option: {item_text}")
+                                            bet_button = item
+                                            bet_button.scroll_into_view_if_needed()
+                                            time.sleep(0.5)
+                                            bet_button.click()
+                                            print(f"    ✓ Bet clicked: Over 1.5 Goals")
+                                            time.sleep(1.5)
+                                            bet_clicked = True
+                                            break
+                                except Exception as e:
+                                    continue
+                            
+                            if bet_clicked:
+                                break
+                    except Exception as e:
+                        continue
+            except Exception as e:
+                print(f"    ⚠ Error finding Total Goals market: {str(e)}")
+            
+            if not bet_clicked:
+                print(f"    ✗ Could not find/click Over 1.5 Goals bet")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            print(f"    ✗ Error placing over 1.5 goals bet: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def extract_bets_from_market_selectors(self, market_selectors_data):
+        """Extract bet selections from market selectors data"""
+        bets = []
+        
+        for match in market_selectors_data:
+            try:
+                home_team = match.get('home_team', 'Unknown')
+                away_team = match.get('away_team', 'Unknown')
+                game_url = match.get('game_url')
+                match_id = match.get('forebet_match_id') or match.get('game_url') or f"{home_team}|{away_team}"
+                
+                # Extract bets based on boolean flags
+                if match.get('home_over_bet', False):
+                    odds = self.convert_to_float(match.get('home_team_over_0.5'))
+                    if odds:
+                        bets.append({
+                            'bet_id': str(uuid.uuid4()),
+                            'game': match,
+                            'bet_type': 'home_over_05',
+                            'odds': odds,
+                            'team': f"{home_team} Over 0.5",
+                            'game_url': game_url,
+                            'match_id': match_id,
+                            'direction': 'home'
+                        })
+                
+                if match.get('away_over_bet', False):
+                    odds = self.convert_to_float(match.get('away_team_over_0.5'))
+                    if odds:
+                        bets.append({
+                            'bet_id': str(uuid.uuid4()),
+                            'game': match,
+                            'bet_type': 'away_over_05',
+                            'odds': odds,
+                            'team': f"{away_team} Over 0.5",
+                            'game_url': game_url,
+                            'match_id': match_id,
+                            'direction': 'away'
+                        })
+                
+                if match.get('home_draw_bet', False):
+                    odds = self.convert_to_float(match.get('home_draw_odds'))
+                    if odds:
+                        bets.append({
+                            'bet_id': str(uuid.uuid4()),
+                            'game': match,
+                            'bet_type': 'home_draw',
+                            'odds': odds,
+                            'team': f"{home_team} or Draw",
+                            'game_url': game_url,
+                            'match_id': match_id,
+                            'direction': 'home'
+                        })
+                
+                if match.get('away_draw_bet', False):
+                    odds = self.convert_to_float(match.get('away_draw_odds'))
+                    if odds:
+                        bets.append({
+                            'bet_id': str(uuid.uuid4()),
+                            'game': match,
+                            'bet_type': 'away_draw',
+                            'odds': odds,
+                            'team': f"{away_team} or Draw",
+                            'game_url': game_url,
+                            'match_id': match_id,
+                            'direction': 'away'
+                        })
+                
+                if match.get('over_1_5_bet', False):
+                    odds = self.convert_to_float(match.get('total_over_1.5'))
+                    if odds:
+                        bets.append({
+                            'bet_id': str(uuid.uuid4()),
+                            'game': match,
+                            'bet_type': 'over_1_5',
+                            'odds': odds,
+                            'team': f"Over 1.5 Goals",
+                            'game_url': game_url,
+                            'match_id': match_id,
+                            'direction': None
+                        })
+            except Exception as e:
+                print(f"  ✗ Error extracting bets from match: {str(e)}")
+                continue
+        
+        return bets
+
+    def place_single_bet(self, page, bet_selection):
+        """Place a single bet and immediately confirm it"""
+        bet_type = bet_selection.get('bet_type')
+        team = bet_selection.get('team')
+        odds = bet_selection.get('odds')
+        
+        print(f"\n  Placing single bet: {team} @ {odds}")
+        
+        # Route to appropriate placement method
+        if bet_type in ['home_over_05', 'away_over_05']:
+            success = self.place_team_over_05_bet(page, bet_selection)
+        elif bet_type in ['home_draw', 'away_draw']:
+            success = self.place_double_chance_bet(page, bet_selection)
+        elif bet_type == 'over_1_5':
+            success = self.place_over_15_bet(page, bet_selection)
+        else:
+            print(f"    ✗ Unknown bet type: {bet_type}")
+            return False
+        
+        if success:
+            # Immediately click Bet Now to confirm the single bet
+            print(f"    ✓ Bet added to betslip, confirming...")
+            bet_placed = self.click_bet_now(page)
+            if bet_placed:
+                bet_selection['status'] = 'placed'
+                bet_selection['placed_at'] = datetime.now(timezone.utc).isoformat()
+                print(f"    ✓ Single bet placed successfully")
+                return True
+            else:
+                bet_selection['status'] = 'failed'
+                bet_selection['placed_at'] = datetime.now(timezone.utc).isoformat()
+                print(f"    ✗ Failed to confirm bet")
+                return False
+        else:
+            bet_selection['status'] = 'failed'
+            bet_selection['placed_at'] = datetime.now(timezone.utc).isoformat()
+            print(f"    ✗ Failed to add bet to betslip")
+            return False
 
     def click_bet_now(self, page):
         """Click the Bet Now button to place the betslip"""
@@ -676,54 +857,56 @@ class BetwayAutomation:
             traceback.print_exc()
             return False
 
-    def save_betting_tickets(self, tickets, market_type, date_str):
-        """Save comprehensive ticket information to JSON file"""
+    def save_single_bets(self, bets, date_str):
+        """Save single bets information to JSON file"""
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         output_dir = os.path.join(project_root, "betting_data")
         os.makedirs(output_dir, exist_ok=True)
         
-        filename = f"betting_tickets_{date_str}.json"
+        filename = f"single_bets_{date_str}.json"
         filepath = os.path.join(output_dir, filename)
         
-        # Prepare ticket data with all required information
-        ticket_data = {
+        # Prepare bet data
+        bets_data = {
             'date': date_str,
-            'market_type': market_type,
             'timestamp': datetime.now(timezone.utc).isoformat(),
-            'tickets': []
+            'total_bets': len(bets),
+            'placed_bets': sum(1 for b in bets if b.get('status') == 'placed'),
+            'failed_bets': sum(1 for b in bets if b.get('status') == 'failed'),
+            'bets': []
         }
         
-        for ticket in tickets:
-            ticket_info = {
-                'ticket_id': ticket.get('ticket_id'),
-                'market_type': market_type,
-                'selections': [],
-                'combined_odds': ticket.get('combined_odds'),
-                'timestamp': ticket.get('timestamp'),
-                'status': ticket.get('status'),
-                'placed_count': ticket.get('placed_count', 0)
+        for bet in bets:
+            bet_info = {
+                'bet_id': bet.get('bet_id'),
+                'bet_type': bet.get('bet_type'),
+                'team': bet.get('team'),
+                'odds': bet.get('odds'),
+                'status': bet.get('status', 'pending'),
+                'placed_at': bet.get('placed_at'),
+                'game_url': bet.get('game_url'),
+                'match_id': bet.get('match_id'),
+                'game_data': bet.get('game', {})
             }
-            
-            for selection in ticket.get('selections', []):
-                selection_info = {
-                    'bet_type': selection.get('bet_type'),
-                    'team': selection.get('team'),
-                    'odds': selection.get('odds'),
-                    'ml_probability': selection.get('ml_probability'),
-                    'ml_value': selection.get('ml_value'),
-                    'game_url': selection.get('game_url'),
-                    'game_data': selection.get('game', {})
-                }
-                ticket_info['selections'].append(selection_info)
-            
-            ticket_data['tickets'].append(ticket_info)
+            bets_data['bets'].append(bet_info)
         
         # Save to JSON file
         with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(ticket_data, f, indent=2, ensure_ascii=False)
+            json.dump(bets_data, f, indent=2, ensure_ascii=False)
         
-        print(f"\n✓ Betting tickets saved to: {filepath}")
-        print(f"  Total tickets: {len(tickets)}")
+        # Also save to database
+        try:
+            from betting_engine.importers import import_single_bets
+            date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+            db_result = import_single_bets(date_obj, bets_data)
+            print(f"Database: Created {db_result['created']}, Updated {db_result['updated']}")
+        except Exception as e:
+            print(f"⚠ Database save failed: {str(e)}")
+        
+        print(f"\n✓ Single bets saved to: {filepath}")
+        print(f"  Total bets: {bets_data['total_bets']}")
+        print(f"  Placed: {bets_data['placed_bets']}")
+        print(f"  Failed: {bets_data['failed_bets']}")
         return filepath
 
     def run(self, date_str=None):
@@ -790,111 +973,64 @@ class BetwayAutomation:
             time.sleep(3)
             print("✓ Login completed")
 
-            print("\n[STEP 4] Loading predictions file...")
+            print("\n[STEP 4] Loading market selectors file...")
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            predictions_file = os.path.join(project_root, "betting_data", f"predictions_{date_str}.json")
+            market_selectors_file = os.path.join(project_root, "betting_data", f"market_selectors_{date_str}.json")
             
-            if not os.path.exists(predictions_file):
-                print(f"✗ Predictions file not found: {predictions_file}")
-                print("  Trying alternative: combined file...")
-                predictions_file = os.path.join(project_root, "betting_data", f"combined_{date_str}.json")
-            
-            if not os.path.exists(predictions_file):
-                print(f"✗ Predictions file not found: {predictions_file}")
+            if not os.path.exists(market_selectors_file):
+                print(f"✗ Market selectors file not found: {market_selectors_file}")
                 context.close()
                 browser.close()
                 return None
             
-            print(f"✓ Loading predictions from: {predictions_file}")
-            with open(predictions_file, 'r', encoding='utf-8') as f:
-                all_games = json.load(f)
-            print(f"✓ Loaded {len(all_games)} games")
+            print(f"✓ Loading market selectors from: {market_selectors_file}")
+            with open(market_selectors_file, 'r', encoding='utf-8') as f:
+                market_selectors_data = json.load(f)
+            print(f"✓ Loaded {len(market_selectors_data)} matches")
 
-            # Process Double Chance bets
-            print("\n[STEP 5] Processing Double Chance bets...")
+            # Extract bets from market selectors
+            print("\n[STEP 5] Extracting bets from market selectors...")
             print("=" * 60)
-            double_chance_selections = self.select_double_chance_bets(all_games)
-            print(f"\n✓ Selected {len(double_chance_selections)} Double Chance bets")
+            all_bets = self.extract_bets_from_market_selectors(market_selectors_data)
+            print(f"\n✓ Extracted {len(all_bets)} bets to place")
             
-            if double_chance_selections:
-                double_chance_tickets = self.group_into_tickets(double_chance_selections)
-                print(f"✓ Grouped into {len(double_chance_tickets)} tickets")
-                for ticket_idx, ticket in enumerate(double_chance_tickets, 1):
-                    print(f"  Ticket {ticket_idx}: {len(ticket['selections'])} selection(s)")
-                
-                for ticket_idx, ticket in enumerate(double_chance_tickets, 1):
-                    print(f"\n--- Ticket {ticket_idx}/{len(double_chance_tickets)} ({len(ticket['selections'])} selections) ---")
-                    success = self.place_bets_for_ticket(page, ticket, 'double_chance')
-                    
-                    if success:
-                        # Click Bet Now after placing all bets in ticket
-                        print(f"\n  Clicking Bet Now for ticket {ticket_idx}...")
-                        bet_placed = self.click_bet_now(page)
-                        if bet_placed:
-                            ticket['status'] = 'placed'
-                            print(f"  ✓ Ticket {ticket_idx} bet placed successfully")
-                        else:
-                            ticket['status'] = 'pending'
-                            print(f"  ⚠ Ticket {ticket_idx} bet placement failed")
-                        
-                        # Wait before next ticket (if any)
-                        if ticket_idx < len(double_chance_tickets):
-                            print(f"  Waiting before next ticket...")
-                            time.sleep(3)
-                    else:
-                        ticket['status'] = 'failed'
-                        print(f"  ✗ Ticket {ticket_idx} failed to place bets")
-                
-                # Save tickets
-                self.save_betting_tickets(double_chance_tickets, 'double_chance', date_str)
+            if not all_bets:
+                print("⚠ No bets to place")
             else:
-                print("⚠ No eligible Double Chance bets found")
-
-            # Process Team Over 0.5 bets
-            print("\n[STEP 6] Processing Team Over 0.5 bets...")
-            print("=" * 60)
-            team_over_05_selections = self.select_team_over_05_bets(all_games)
-            print(f"\n✓ Selected {len(team_over_05_selections)} Team Over 0.5 bets")
-            
-            if team_over_05_selections:
-                team_over_05_tickets = self.group_into_tickets(team_over_05_selections)
-                print(f"✓ Grouped into {len(team_over_05_tickets)} tickets")
-                for ticket_idx, ticket in enumerate(team_over_05_tickets, 1):
-                    print(f"  Ticket {ticket_idx}: {len(ticket['selections'])} selection(s)")
+                # Group bets by type for reporting
+                bet_types = {}
+                for bet in all_bets:
+                    bet_type = bet.get('bet_type')
+                    if bet_type not in bet_types:
+                        bet_types[bet_type] = []
+                    bet_types[bet_type].append(bet)
                 
-                for ticket_idx, ticket in enumerate(team_over_05_tickets, 1):
-                    print(f"\n--- Ticket {ticket_idx}/{len(team_over_05_tickets)} ({len(ticket['selections'])} selections) ---")
-                    success = self.place_bets_for_ticket(page, ticket, 'team_over_05')
+                print("\n=== BET BREAKDOWN ===")
+                for bet_type, bets_list in bet_types.items():
+                    print(f"  {bet_type}: {len(bets_list)} bets")
+                
+                # Place each bet individually
+                print("\n[STEP 6] Placing single bets...")
+                print("=" * 60)
+                
+                for bet_idx, bet in enumerate(all_bets, 1):
+                    print(f"\n--- Bet {bet_idx}/{len(all_bets)} ---")
+                    self.place_single_bet(page, bet)
                     
-                    if success:
-                        # Click Bet Now after placing all bets in ticket
-                        print(f"\n  Clicking Bet Now for ticket {ticket_idx}...")
-                        bet_placed = self.click_bet_now(page)
-                        if bet_placed:
-                            ticket['status'] = 'placed'
-                            print(f"  ✓ Ticket {ticket_idx} bet placed successfully")
-                        else:
-                            ticket['status'] = 'pending'
-                            print(f"  ⚠ Ticket {ticket_idx} bet placement failed")
-                        
-                        # Wait before next ticket (if any)
-                        if ticket_idx < len(team_over_05_tickets):
-                            print(f"  Waiting before next ticket...")
-                            time.sleep(3)
-                    else:
-                        ticket['status'] = 'failed'
-                        print(f"  ✗ Ticket {ticket_idx} failed to place bets")
+                    # Wait before next bet
+                    if bet_idx < len(all_bets):
+                        print(f"  Waiting before next bet...")
+                        time.sleep(2)
                 
-                # Save tickets
-                self.save_betting_tickets(team_over_05_tickets, 'team_over_05', date_str)
-            else:
-                print("⚠ No eligible Team Over 0.5 bets found")
+                # Save all bets
+                print("\n[STEP 7] Saving bets...")
+                self.save_single_bets(all_bets, date_str)
 
-            print("\n[STEP 7] Final delay before closing...")
+            print("\n[STEP 8] Final delay before closing...")
             time.sleep(10)
             print("✓ Delay completed")
 
-            print("\n[STEP 8] Closing browser...")
+            print("\n[STEP 9] Closing browser...")
             context.close()
             browser.close()
             print("✓ Browser closed")

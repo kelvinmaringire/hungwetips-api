@@ -9,7 +9,7 @@ ENV PYTHONUNBUFFERED=1 \
 # Set workdir
 WORKDIR /app
 
-# Install system dependencies (Playwright + Django + Pillow + PostgreSQL)
+# Install system dependencies in one layer
 RUN apt-get update --yes --quiet && \
     apt-get install --yes --quiet --no-install-recommends \
     build-essential \
@@ -20,49 +20,27 @@ RUN apt-get update --yes --quiet && \
     libffi-dev \
     libssl-dev \
     gettext \
-    curl \
-    wget \
-    ca-certificates \
-    fonts-liberation \
-    libnss3 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
-    libxdamage1 \
-    libxfixes3 \
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
-    libcairo2 \
-    libatspi2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip tooling
+# Install pip-tools for dependency management (optional but recommended)
 RUN pip install --upgrade pip setuptools wheel
 
-# Copy only requirements first (better cache usage)
+# Copy only requirements first (for better caching)
 COPY requirements.txt .
 
-# Install Python dependencies
+# Use Docker’s build cache for pip downloads
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
-# Install Playwright browsers (Chromium, Firefox, WebKit)
-RUN python -m playwright install --with-deps
+# Install Playwright (latest stable) - system deps + Chromium for Betway automation
+# https://github.com/microsoft/playwright
+RUN playwright install-deps && playwright install chromium
 
-# Copy application source
+# Copy the app source
 COPY . .
-
-# Entrypoint permissions
-RUN chmod +x entrypoint.sh
 
 # Expose Django port
 EXPOSE 8000
 
-# Start container
-CMD ["./entrypoint.sh"]
+# Start container (use sh to avoid needing chmod on host when .:/app is mounted)
+CMD ["sh", "entrypoint.sh"]

@@ -85,39 +85,36 @@ class MergeYesterdayResults:
         
         for tip in tips_data:
             # Get the match_id from the tip (it's called forebet_match_id in combined file)
-            match_id = tip.get('forebet_match_id')
+            match_id = tip.get('forebet_match_id') or tip.get('match_id')
             
             # Create a copy of the tip data
             merged_tip = tip.copy()
             
-            # Add match_id field for consistency
+            # Keep only one set of identifiers/prediction fields
+            field_map = {
+                'forebet_match_id': 'match_id',
+                'forebet_pred': 'pred',
+                'forebet_home_pred_score': 'home_pred_score',
+                'forebet_away_pred_score': 'away_pred_score',
+                'forebet_prob_1': 'prob_1',
+                'forebet_prob_x': 'prob_x',
+                'forebet_prob_2': 'prob_2',
+                'forebet_avg_goals': 'avg_goals',
+                'forebet_kelly': 'kelly',
+                'forebet_game_link': 'game_link',
+                'forebet_preview_link': 'preview_link',
+                'forebet_country': 'country',
+                'forebet_league_name': 'league_name',
+            }
+
+            for forebet_key, normalized_key in field_map.items():
+                if forebet_key in merged_tip and normalized_key not in merged_tip:
+                    merged_tip[normalized_key] = merged_tip.get(forebet_key)
+                if forebet_key in merged_tip:
+                    del merged_tip[forebet_key]
+
+            # Ensure match_id is set even if only match_id existed
             merged_tip['match_id'] = match_id
-            
-            # Add normalized field names for compatibility (map forebet_* fields)
-            if 'forebet_pred' in merged_tip:
-                merged_tip['pred'] = merged_tip.get('forebet_pred')
-            if 'forebet_home_pred_score' in merged_tip:
-                merged_tip['home_pred_score'] = merged_tip.get('forebet_home_pred_score')
-            if 'forebet_away_pred_score' in merged_tip:
-                merged_tip['away_pred_score'] = merged_tip.get('forebet_away_pred_score')
-            if 'forebet_prob_1' in merged_tip:
-                merged_tip['prob_1'] = merged_tip.get('forebet_prob_1')
-            if 'forebet_prob_x' in merged_tip:
-                merged_tip['prob_x'] = merged_tip.get('forebet_prob_x')
-            if 'forebet_prob_2' in merged_tip:
-                merged_tip['prob_2'] = merged_tip.get('forebet_prob_2')
-            if 'forebet_avg_goals' in merged_tip:
-                merged_tip['avg_goals'] = merged_tip.get('forebet_avg_goals')
-            if 'forebet_kelly' in merged_tip:
-                merged_tip['kelly'] = merged_tip.get('forebet_kelly')
-            if 'forebet_game_link' in merged_tip:
-                merged_tip['game_link'] = merged_tip.get('forebet_game_link')
-            if 'forebet_preview_link' in merged_tip:
-                merged_tip['preview_link'] = merged_tip.get('forebet_preview_link')
-            if 'forebet_country' in merged_tip:
-                merged_tip['country'] = merged_tip.get('forebet_country')
-            if 'forebet_league_name' in merged_tip:
-                merged_tip['league_name'] = merged_tip.get('forebet_league_name')
             
             # Try to find matching result
             if match_id and match_id in results_dict:
@@ -160,6 +157,16 @@ class MergeYesterdayResults:
         # Save merged data
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(merged_data, f, indent=2, ensure_ascii=False)
+        
+        # Also save to database
+        try:
+            from datetime import datetime
+            from betting_engine.importers import import_merged_matches
+            date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+            db_result = import_merged_matches(date_obj, merged_data)
+            print(f"Database: Created {db_result['created']}, Updated {db_result['updated']}")
+        except Exception as e:
+            print(f"⚠ Database save failed: {str(e)}")
         
         return output_path
 

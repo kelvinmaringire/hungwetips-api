@@ -713,18 +713,36 @@ class ForebetScraper:
         # Save tips
         if tips:
             tomorrow = datetime.now() + timedelta(days=1)
+            tips_date = tomorrow.date()
             tips_file = os.path.join(data_dir, f"forebet_tips_{tomorrow.strftime('%Y-%m-%d')}.json")
             with open(tips_file, 'w', encoding='utf-8') as f:
                 json.dump(tips, f, indent=2, ensure_ascii=False)
             print(f"\nTips saved to: {tips_file}")
+            
+            # Also save to database
+            try:
+                from betting_engine.importers import import_forebet_tips
+                db_result = import_forebet_tips(tips_date, tips)
+                print(f"Database: Created {db_result['created']}, Updated {db_result['updated']}")
+            except Exception as e:
+                print(f"⚠ Database save failed: {str(e)}")
         
         # Save results
         if results:
             yesterday = datetime.now() - timedelta(days=1)
+            results_date = yesterday.date()
             results_file = os.path.join(data_dir, f"forebet_results_{yesterday.strftime('%Y-%m-%d')}.json")
             with open(results_file, 'w', encoding='utf-8') as f:
                 json.dump(results, f, indent=2, ensure_ascii=False)
             print(f"Results saved to: {results_file}")
+            
+            # Also save to database
+            try:
+                from betting_engine.importers import import_forebet_results
+                db_result = import_forebet_results(results_date, results)
+                print(f"Database: Created {db_result['created']}, Updated {db_result['updated']}")
+            except Exception as e:
+                print(f"⚠ Database save failed: {str(e)}")
 
 
 if __name__ == "__main__":

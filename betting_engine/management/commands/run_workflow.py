@@ -6,15 +6,9 @@ from pathlib import Path
 
 
 class Command(BaseCommand):
-    help = "Run complete betting workflow: scrape, match, merge, train (optional), predict, and automate betting"
+    help = "Run complete betting workflow: scrape, match, merge, select markets, and automate betting"
 
     def add_arguments(self, parser):
-        parser.add_argument(
-            '--skip-training',
-            action='store_true',
-            help='Skip model training step (use existing models)',
-            default=False,
-        )
         parser.add_argument(
             '--skip-betting',
             action='store_true',
@@ -61,7 +55,7 @@ class Command(BaseCommand):
         self.stdout.write(f"\n📅 Target Date: {date_str}")
         self.stdout.write(f"⏰ Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         
-        # Define workflow steps
+        # Define workflow steps (following WORKFLOW.md daily cycle)
         steps = [
             {
                 'name': 'Step 1: Scrape Forebet Tips',
@@ -89,22 +83,13 @@ class Command(BaseCommand):
                 'skip': options['skip_merge'],
             },
             {
-                'name': 'Step 5: Train ML Models (Optional)',
-                'command': 'train_model',
-                'args': {'model': 'all'},
-                'required': False,
-                'skip': options['skip_training'],
-            },
-            {
-                'name': 'Step 6: Make Predictions (Trains automatically if Step 5 skipped)',
-                'command': 'predict_matches',
-                # If Step 5 ran, skip training in Step 6 to avoid double training
-                # If Step 5 was skipped, Step 6 will train automatically (default behavior)
-                'args': {'date': date_str, 'model': 'all', 'no_train': not options['skip_training']},
+                'name': 'Step 5: Select Markets',
+                'command': 'market_selector',
+                'args': {'date': date_str},
                 'required': True,
             },
             {
-                'name': 'Step 7: Automate Betting',
+                'name': 'Step 6: Automate Betting',
                 'command': 'automate_betting',
                 'args': {'date': date_str},
                 'required': False,

@@ -650,6 +650,14 @@ class BetwayScraper:
             with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(all_games_data, f, indent=2, ensure_ascii=False)
             
+            # Also save to database
+            try:
+                from betting_engine.importers import import_betway_odds
+                db_result = import_betway_odds(tomorrow_sast.date(), all_games_data)
+                print(f"\nDatabase: Created {db_result['created']}, Updated {db_result['updated']}")
+            except Exception as e:
+                print(f"\n⚠ Database save failed: {str(e)}")
+            
             print(f"\n\n=== SUMMARY ===")
             print(f"Total game links found: {len(all_game_hrefs)}")
             print(f"Total games scraped: {len(all_games_data)}")

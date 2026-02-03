@@ -1,0 +1,10 @@
+# GitGuardian configuration
+# See https://docs.gitguardian.com/ggshield-docs/configuration
+# Note: GitHub integration may require dashboard-level exclusion instead of this file
+version: 2
+
+secret:
+  # CI workflow uses ephemeral test credentials (postgres/postgres) - not real secrets
+  ignored_paths:
+    - .github/workflows/ci.yml
+    - '**/.github/workflows/*.yml'

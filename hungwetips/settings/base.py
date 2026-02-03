@@ -11,7 +11,13 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
+import os
+from datetime import timedelta
 from pathlib import Path
+
+
+from dotenv import load_dotenv
+load_dotenv()
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 BASE_DIR = PROJECT_DIR.parent
@@ -26,7 +32,11 @@ BASE_DIR = PROJECT_DIR.parent
 INSTALLED_APPS = [
     "betting_engine",
     "home",
+    "accounts",
     "search",
+    "rest_framework",
+    "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
     "wagtail.contrib.forms",
     "wagtail.contrib.redirects",
     "wagtail.embeds",
@@ -38,6 +48,7 @@ INSTALLED_APPS = [
     "wagtail.search",
     "wagtail.admin",
     "wagtail",
+    "wagtail_modeladmin",
     "modelcluster",
     "taggit",
     "django_filters",
@@ -47,11 +58,75 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",
 ]
+
+############### New Settings ################
+
+AUTH_USER_MODEL = "accounts.CustomUser"
+
+
+"""
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:9000",
+    "http://127.0.0.1:9000",
+    "https://databet.co.za",
+    "https://www.databet.co.za",
+]
+"""
+
+CORS_ALLOW_ALL_ORIGINS = True
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:9000",
+    "http://127.0.0.1:9000",
+    "http://0.0.0.0:8000",
+    "https://databet.co.za",
+    "https://www.databet.co.za",
+]
+
+
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "SIGNING_KEY": os.getenv("DJANGO_SECRET_KEY", "django-insecure-change-this-in-production"),
+}
+
+# Email settings (for password reset and verification)
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() == "true"
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@hungwetips.com")
+
+# Frontend URL for email links
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:9000")
+
+# Django Sites Framework (required for some apps)
+SITE_ID = 1
+
+
+
+############### End New Settings ################
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "corsheaders.middleware.CorsMiddleware", # New MIDDLEWARE
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -89,11 +164,11 @@ WSGI_APPLICATION = "hungwetips.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": "hungwetipsdb",
-        "USER": "postgres",
-        "PASSWORD": "talibk700",
-        "HOST": "127.0.0.1",
-        "PORT": "5432",
+        "NAME": os.getenv("POSTGRES_DB"),
+        "USER": os.getenv("POSTGRES_USER"),
+        "PASSWORD": os.getenv("POSTGRES_PASSWORD"),
+        "HOST": os.getenv("POSTGRES_HOST", "db"),  # 👈 use POSTGRES_HOST
+        "PORT": os.getenv("POSTGRES_PORT", 5432),  # 👈 use POSTGRES_PORT
     }
 }
 
@@ -138,13 +213,14 @@ STATICFILES_FINDERS = [
 ]
 
 STATICFILES_DIRS = [
-    PROJECT_DIR / "static",
+    os.path.join(PROJECT_DIR, "static"),
+    os.path.join(BASE_DIR, "www")
 ]
 
-STATIC_ROOT = BASE_DIR / "static"
+STATIC_ROOT = os.path.join(BASE_DIR, "static")
 STATIC_URL = "/static/"
 
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 MEDIA_URL = "/media/"
 
 # Default storage settings
