@@ -34,6 +34,21 @@ This command will:
 
 **See detailed steps below for manual execution or troubleshooting.**
 
+## Analytics database (`hungwetips_analysis.db`)
+
+Data is written to **both** the default DB (PostgreSQL) and the analytics DB (SQLite: `hungwetips_analysis.db`). If you see errors like:
+
+- `no such column: betting_engine_combinedmatch.matches`
+- `no such column: betting_engine_marketselection.selections`
+
+the analytics DB schema is behind. Apply **only** the betting_engine migrations to analytics (other apps like Wagtail are not used on analytics):
+
+```bash
+python manage.py migrate betting_engine --database=analytics
+```
+
+Run this once after pulling schema changes, or when setting up a new analytics DB.
+
 ## 📋 Daily Workflow (For Tomorrow's Matches)
 
 ### Step 1: Scrape Forebet Tips

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import time
 import json
 import os
-
+from concurrent.futures import ThreadPoolExecutor
 
 leagues = {
   "England": [
@@ -634,34 +634,41 @@ class BetwayScraper:
                 else:
                     print(f"\n[{i}/{len(all_games_data)}] Skipping: No game URL available")
             
-            # Generate filename with date
-            date_str = tomorrow_sast.strftime("%Y-%m-%d")
-            filename = f"{date_str}.json"
-            
-            # Create output directory if it doesn't exist
-            # Get project root (assuming we're in betting_engine/services/)
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            output_dir = os.path.join(project_root, "betting_data")
-            os.makedirs(output_dir, exist_ok=True)
-            
-            filepath = os.path.join(output_dir, filename)
-            
-            # Save to JSON file
-            with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(all_games_data, f, indent=2, ensure_ascii=False)
-            
-            # Also save to database
-            try:
-                from betting_engine.importers import import_betway_odds
-                db_result = import_betway_odds(tomorrow_sast.date(), all_games_data)
-                print(f"\nDatabase: Created {db_result['created']}, Updated {db_result['updated']}")
-            except Exception as e:
-                print(f"\n⚠ Database save failed: {str(e)}")
+            # Save to both default DB and analytics DB (run in thread to avoid async context)
+            if all_games_data:
+                def _save_betway_to_db():
+                    from betting_engine.importers import import_betway_odds
+                    return import_betway_odds(tomorrow_sast.date(), all_games_data)
+
+                try:
+                    with ThreadPoolExecutor(max_workers=1) as executor:
+                        future = executor.submit(_save_betway_to_db)
+                        db_result = future.result()
+                    print(f"\nDatabase (default + analytics): Created {db_result['created']}, Updated {db_result['updated']}")
+                except Exception as e:
+                    print(f"\n⚠ Database save failed: {e}")
+                    # Fallback: try each DB separately in a thread
+                    def _save_using(using):
+                        from betting_engine.importers import import_betway_odds
+                        return import_betway_odds(tomorrow_sast.date(), all_games_data, using=using)
+
+                    with ThreadPoolExecutor(max_workers=2) as executor:
+                        f_default = executor.submit(_save_using, 'default')
+                        f_analytics = executor.submit(_save_using, 'analytics')
+                        try:
+                            r1 = f_default.result()
+                            print(f"  Default DB: Created {r1['created']}, Updated {r1['updated']}")
+                        except Exception as e1:
+                            print(f"  Default DB failed: {e1}")
+                        try:
+                            r2 = f_analytics.result()
+                            print(f"  Analytics DB: Created {r2['created']}, Updated {r2['updated']}")
+                        except Exception as e2:
+                            print(f"  Analytics DB failed: {e2}")
             
             print(f"\n\n=== SUMMARY ===")
             print(f"Total game links found: {len(all_game_hrefs)}")
             print(f"Total games scraped: {len(all_games_data)}")
-            print(f"Data saved to: {filepath}")
             
             print(f"\n=== SAMPLE DATA ===")
             if all_games_data:

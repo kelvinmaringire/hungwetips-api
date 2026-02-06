@@ -4,9 +4,6 @@ Defines all betting data API endpoints.
 """
 from django.urls import path
 from .views import (
-    # Match views
-    MatchListView,
-    MatchDetailView,
     # BetwayOdds views
     BetwayOddsListView,
     BetwayOddsDetailView,
@@ -25,6 +22,9 @@ from .views import (
     # SingleBetSnapshot views
     SingleBetSnapshotListView,
     SingleBetSnapshotDetailView,
+    # MergedMatch views
+    MergedMatchListView,
+    MergedMatchDetailView,
     # Import views
     BetwayOddsImportView,
     ForebetTipsImportView,
@@ -38,10 +38,6 @@ from .views import (
 app_name = 'betting_engine'
 
 urlpatterns = [
-    # Match endpoints
-    path('matches/', MatchListView.as_view(), name='match_list'),
-    path('matches/<int:pk>/', MatchDetailView.as_view(), name='match_detail'),
-    
     # BetwayOdds endpoints
     path('betway-odds/', BetwayOddsListView.as_view(), name='betway_odds_list'),
     path('betway-odds/<int:pk>/', BetwayOddsDetailView.as_view(), name='betway_odds_detail'),
@@ -65,6 +61,10 @@ urlpatterns = [
     # SingleBetSnapshot endpoints
     path('single-bets/', SingleBetSnapshotListView.as_view(), name='single_bet_snapshot_list'),
     path('single-bets/<int:pk>/', SingleBetSnapshotDetailView.as_view(), name='single_bet_snapshot_detail'),
+    
+    # MergedMatch endpoints
+    path('merged-matches/', MergedMatchListView.as_view(), name='merged_match_list'),
+    path('merged-matches/<int:pk>/', MergedMatchDetailView.as_view(), name='merged_match_detail'),
     
     # Import endpoints
     path('import/betway-odds/', BetwayOddsImportView.as_view(), name='import_betway_odds'),

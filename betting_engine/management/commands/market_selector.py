@@ -46,29 +46,34 @@ class Command(BaseCommand):
                 output_filename=options['output']
             )
             
-            # Load the selected markets to show detailed statistics
-            with open(output_path, 'r', encoding='utf-8') as f:
-                selected_data = json.load(f)
+            # Load the selected markets from database to show detailed statistics
+            from betting_engine.models import MarketSelection
             
-            total_matches = len(selected_data)
-            home_over_count = sum(1 for m in selected_data if m.get('home_over_bet', False))
-            away_over_count = sum(1 for m in selected_data if m.get('away_over_bet', False))
-            home_draw_count = sum(1 for m in selected_data if m.get('home_draw_bet', False))
-            away_draw_count = sum(1 for m in selected_data if m.get('away_draw_bet', False))
-            over_1_5_count = sum(1 for m in selected_data if m.get('over_1_5_bet', False))
+            market_selection = MarketSelection.objects.using('default').filter(date=date_obj).first()
+            
+            if not market_selection:
+                raise CommandError(f"No market selections found for {date_str}")
+            
+            selections_data = market_selection.selections if isinstance(market_selection.selections, list) else []
+            total_matches = len(selections_data)
+            home_over_count = sum(1 for m in selections_data if m.get('home_over_bet', False))
+            away_over_count = sum(1 for m in selections_data if m.get('away_over_bet', False))
+            home_draw_count = sum(1 for m in selections_data if m.get('home_draw_bet', False))
+            away_draw_count = sum(1 for m in selections_data if m.get('away_draw_bet', False))
+            over_1_5_count = sum(1 for m in selections_data if m.get('over_1_5_bet', False))
             
             self.stdout.write(self.style.SUCCESS(f"\nMarket selection completed successfully!"))
             self.stdout.write(f"\n=== SUMMARY ===")
             self.stdout.write(f"Total matches: {total_matches}")
-            self.stdout.write(f"Home Over 0.5: {home_over_count} matches ({home_over_count/total_matches*100:.2f}%)")
-            self.stdout.write(f"Away Over 0.5: {away_over_count} matches ({away_over_count/total_matches*100:.2f}%)")
-            self.stdout.write(f"Home Draw: {home_draw_count} matches ({home_draw_count/total_matches*100:.2f}%)")
-            self.stdout.write(f"Away Draw: {away_draw_count} matches ({away_draw_count/total_matches*100:.2f}%)")
-            self.stdout.write(f"Over 1.5 Goals: {over_1_5_count} matches ({over_1_5_count/total_matches*100:.2f}%)")
-            self.stdout.write(f"\nOutput saved to: {output_path}")
+            self.stdout.write(f"Home Over 0.5: {home_over_count} matches ({home_over_count/total_matches*100:.2f}%)" if total_matches > 0 else "Home Over 0.5: 0 matches")
+            self.stdout.write(f"Away Over 0.5: {away_over_count} matches ({away_over_count/total_matches*100:.2f}%)" if total_matches > 0 else "Away Over 0.5: 0 matches")
+            self.stdout.write(f"Home Draw: {home_draw_count} matches ({home_draw_count/total_matches*100:.2f}%)" if total_matches > 0 else "Home Draw: 0 matches")
+            self.stdout.write(f"Away Draw: {away_draw_count} matches ({away_draw_count/total_matches*100:.2f}%)" if total_matches > 0 else "Away Draw: 0 matches")
+            self.stdout.write(f"Over 1.5 Goals: {over_1_5_count} matches ({over_1_5_count/total_matches*100:.2f}%)" if total_matches > 0 else "Over 1.5 Goals: 0 matches")
+            self.stdout.write(f"\nOutput saved to: database")
             
             # Show sample selected markets
-            home_over_samples = [m for m in selected_data if m.get('home_over_bet', False)]
+            home_over_samples = [m for m in selections_data if m.get('home_over_bet', False)]
             if home_over_samples:
                 sample = home_over_samples[0]
                 self.stdout.write(f"\n=== SAMPLE HOME OVER 0.5 BET ===")

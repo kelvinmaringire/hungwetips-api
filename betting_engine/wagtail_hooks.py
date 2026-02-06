@@ -6,21 +6,9 @@ from wagtail_modeladmin.options import (
     ModelAdmin, ModelAdminGroup, modeladmin_register
 )
 from .models import (
-    Match, BetwayOdds, ForebetTip, ForebetResult,
-    CombinedMatch, MarketSelection, SingleBetSnapshot
+    BetwayOdds, ForebetTip, ForebetResult,
+    CombinedMatch, MarketSelection, SingleBetSnapshot, MergedMatch
 )
-
-
-class MatchAdmin(ModelAdmin):
-    model = Match
-    menu_label = "Matches"
-    menu_icon = "fa-futbol-o"
-    add_to_settings_menu = False
-    exclude_from_explorer = False
-    list_display = ('home_team', 'away_team', 'date', 'time', 'country', 'league_name', 'forebet_match_id')
-    list_filter = ('date', 'country', 'league_name')
-    search_fields = ('home_team', 'away_team', 'country', 'league_name')
-    ordering = ('-date', 'home_team')
 
 
 class BetwayOddsAdmin(ModelAdmin):
@@ -29,10 +17,17 @@ class BetwayOddsAdmin(ModelAdmin):
     menu_icon = "fa-money"
     add_to_settings_menu = False
     exclude_from_explorer = False
-    list_display = ('match', 'date', 'created_at')
+
+    def match_count(self, obj):
+        if isinstance(obj.matches, list):
+            return len(obj.matches)
+        return 0
+    match_count.short_description = 'Matches'
+
+    list_display = ('date', 'match_count', 'created_at', 'updated_at')
     list_filter = ('date',)
-    search_fields = ('match__home_team', 'match__away_team')
-    ordering = ('-date', 'match')
+    search_fields = ('date',)
+    ordering = ('-date',)
 
 
 class ForebetTipAdmin(ModelAdmin):
@@ -41,10 +36,17 @@ class ForebetTipAdmin(ModelAdmin):
     menu_icon = "fa-lightbulb-o"
     add_to_settings_menu = False
     exclude_from_explorer = False
-    list_display = ('forebet_match_id', 'home_team', 'away_team', 'date', 'pred', 'prob_1', 'prob_x', 'prob_2')
-    list_filter = ('date', 'country', 'league_name', 'pred')
-    search_fields = ('home_team', 'away_team', 'country', 'league_name')
-    ordering = ('-date', 'forebet_match_id')
+
+    def tip_count(self, obj):
+        if isinstance(obj.tips, list):
+            return len(obj.tips)
+        return 0
+    tip_count.short_description = 'Tips'
+
+    list_display = ('date', 'tip_count', 'created_at', 'updated_at')
+    list_filter = ('date',)
+    search_fields = ('date',)
+    ordering = ('-date',)
 
 
 class ForebetResultAdmin(ModelAdmin):
@@ -53,10 +55,17 @@ class ForebetResultAdmin(ModelAdmin):
     menu_icon = "fa-trophy"
     add_to_settings_menu = False
     exclude_from_explorer = False
-    list_display = ('forebet_match_id', 'date', 'home_correct_score', 'away_correct_score', 'home_ht_score', 'away_ht_score')
+
+    def result_count(self, obj):
+        if isinstance(obj.results, list):
+            return len(obj.results)
+        return 0
+    result_count.short_description = 'Results'
+
+    list_display = ('date', 'result_count', 'created_at', 'updated_at')
     list_filter = ('date',)
-    search_fields = ('forebet_match_id',)
-    ordering = ('-date', 'forebet_match_id')
+    search_fields = ('date',)
+    ordering = ('-date',)
 
 
 class CombinedMatchAdmin(ModelAdmin):
@@ -65,10 +74,17 @@ class CombinedMatchAdmin(ModelAdmin):
     menu_icon = "fa-link"
     add_to_settings_menu = False
     exclude_from_explorer = False
-    list_display = ('match', 'date', 'match_confidence', 'created_at')
+
+    def match_count(self, obj):
+        if isinstance(obj.matches, list):
+            return len(obj.matches)
+        return 0
+    match_count.short_description = 'Matches'
+
+    list_display = ('date', 'match_count', 'created_at', 'updated_at')
     list_filter = ('date',)
-    search_fields = ('match__home_team', 'match__away_team')
-    ordering = ('-date', 'match')
+    search_fields = ('date',)
+    ordering = ('-date',)
 
 
 class MarketSelectionAdmin(ModelAdmin):
@@ -77,10 +93,17 @@ class MarketSelectionAdmin(ModelAdmin):
     menu_icon = "fa-check-square-o"
     add_to_settings_menu = False
     exclude_from_explorer = False
-    list_display = ('match', 'date', 'home_over_bet', 'away_over_bet', 'home_draw_bet', 'away_draw_bet', 'over_1_5_bet')
-    list_filter = ('date', 'home_over_bet', 'away_over_bet', 'home_draw_bet', 'away_draw_bet', 'over_1_5_bet')
-    search_fields = ('match__home_team', 'match__away_team')
-    ordering = ('-date', 'match')
+
+    def selection_count(self, obj):
+        if isinstance(obj.selections, list):
+            return len(obj.selections)
+        return 0
+    selection_count.short_description = 'Selections'
+
+    list_display = ('date', 'selection_count', 'created_at', 'updated_at')
+    list_filter = ('date',)
+    search_fields = ('date',)
+    ordering = ('-date',)
 
 
 class SingleBetSnapshotAdmin(ModelAdmin):
@@ -89,24 +112,70 @@ class SingleBetSnapshotAdmin(ModelAdmin):
     menu_icon = "fa-file-text-o"
     add_to_settings_menu = False
     exclude_from_explorer = False
-    list_display = ('date', 'timestamp', 'total_bets', 'placed_bets', 'failed_bets')
+
+    def bet_count(self, obj):
+        if isinstance(obj.snapshot, dict):
+            bets = obj.snapshot.get('bets', [])
+            if isinstance(bets, list):
+                return len(bets)
+        return 0
+    bet_count.short_description = 'Bets'
+
+    def total_bets(self, obj):
+        if isinstance(obj.snapshot, dict):
+            return obj.snapshot.get('total_bets', 0)
+        return 0
+    total_bets.short_description = 'Total'
+
+    def placed_bets(self, obj):
+        if isinstance(obj.snapshot, dict):
+            return obj.snapshot.get('placed_bets', 0)
+        return 0
+    placed_bets.short_description = 'Placed'
+
+    def failed_bets(self, obj):
+        if isinstance(obj.snapshot, dict):
+            return obj.snapshot.get('failed_bets', 0)
+        return 0
+    failed_bets.short_description = 'Failed'
+
+    list_display = ('date', 'bet_count', 'total_bets', 'placed_bets', 'failed_bets', 'created_at', 'updated_at')
     list_filter = ('date',)
+    ordering = ('-date',)
+
+
+class MergedMatchAdmin(ModelAdmin):
+    model = MergedMatch
+    menu_label = "Merged Matches"
+    menu_icon = "fa-object-group"
+    add_to_settings_menu = False
+    exclude_from_explorer = False
+
+    def row_count(self, obj):
+        if isinstance(obj.rows, list):
+            return len(obj.rows)
+        return 0
+    row_count.short_description = 'Rows'
+
+    list_display = ('date', 'row_count', 'created_at', 'updated_at')
+    list_filter = ('date',)
+    search_fields = ('date',)
     ordering = ('-date',)
 
 
 # Group all betting models under a single "Betting Engine" menu section
 class BettingEngineAdminGroup(ModelAdminGroup):
-    menu_label = "Betting Engine"  # Main menu label
-    menu_icon = "fa-database"  # Main menu icon
-    menu_order = 200  # Menu order in sidebar
+    menu_label = "Betting Engine"
+    menu_icon = "fa-database"
+    menu_order = 200
     items = (
-        MatchAdmin,
         BetwayOddsAdmin,
         ForebetTipAdmin,
         ForebetResultAdmin,
         CombinedMatchAdmin,
         MarketSelectionAdmin,
         SingleBetSnapshotAdmin,
+        MergedMatchAdmin,
     )
 
 

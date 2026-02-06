@@ -858,14 +858,7 @@ class BetwayAutomation:
             return False
 
     def save_single_bets(self, bets, date_str):
-        """Save single bets information to JSON file"""
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        output_dir = os.path.join(project_root, "betting_data")
-        os.makedirs(output_dir, exist_ok=True)
-        
-        filename = f"single_bets_{date_str}.json"
-        filepath = os.path.join(output_dir, filename)
-        
+        """Save single bets information to database"""
         # Prepare bet data
         bets_data = {
             'date': date_str,
@@ -890,11 +883,7 @@ class BetwayAutomation:
             }
             bets_data['bets'].append(bet_info)
         
-        # Save to JSON file
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(bets_data, f, indent=2, ensure_ascii=False)
-        
-        # Also save to database
+        # Save to database
         try:
             from betting_engine.importers import import_single_bets
             date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -902,12 +891,13 @@ class BetwayAutomation:
             print(f"Database: Created {db_result['created']}, Updated {db_result['updated']}")
         except Exception as e:
             print(f"⚠ Database save failed: {str(e)}")
+            raise
         
-        print(f"\n✓ Single bets saved to: {filepath}")
+        print(f"\n✓ Single bets saved to database")
         print(f"  Total bets: {bets_data['total_bets']}")
         print(f"  Placed: {bets_data['placed_bets']}")
         print(f"  Failed: {bets_data['failed_bets']}")
-        return filepath
+        return "DB"
 
     def run(self, date_str=None):
         """Main automation flow with ML-based betting"""
@@ -927,7 +917,26 @@ class BetwayAutomation:
         print(f"✓ User agent configured: {user_agent[:50]}...")
         print(f"✓ Date: {date_str}")
 
-        print("\n[STEP 1] Launching browser...")
+        # Load market selectors from DB before entering Playwright context (avoids async/sync ORM error)
+        print("\n[STEP 0] Loading market selectors from database...")
+        from betting_engine.models import MarketSelection
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+        market_selection = MarketSelection.objects.filter(date=date_obj).first()
+        if not market_selection:
+            print(f"✗ No market selections found for {date_str}. Run market_selector first.")
+            return None
+        market_selectors_data = market_selection.selections
+        if not isinstance(market_selectors_data, list):
+            raise ValueError(f"MarketSelection selections field is not a list for {date_str}")
+        print(f"✓ Loaded {len(market_selectors_data)} matches from database")
+
+        # Extract bets (sync, no browser)
+        print("\n[STEP 1] Extracting bets from market selectors...")
+        print("=" * 60)
+        all_bets = self.extract_bets_from_market_selectors(market_selectors_data)
+        print(f"\n✓ Extracted {len(all_bets)} bets to place")
+
+        print("\n[STEP 2] Launching browser...")
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=self.headless)
             print("✓ Browser launched")
@@ -938,7 +947,7 @@ class BetwayAutomation:
             page = context.new_page()
             print("✓ New page created")
 
-            print("\n[STEP 2] Navigating to Betway Soccer page...")
+            print("\n[STEP 3] Navigating to Betway Soccer page...")
             page.goto(
                 "https://betway.co.za/sport/soccer",
                 timeout=60000,
@@ -946,7 +955,7 @@ class BetwayAutomation:
             )
             print("✓ Page loaded")
 
-            print("\n[STEP 3] Logging in...")
+            print("\n[STEP 4] Logging in...")
             page.wait_for_selector("#login-btn", timeout=30000)
             page.click("#login-btn")
             print("✓ Login button clicked")
@@ -973,27 +982,6 @@ class BetwayAutomation:
             time.sleep(3)
             print("✓ Login completed")
 
-            print("\n[STEP 4] Loading market selectors file...")
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            market_selectors_file = os.path.join(project_root, "betting_data", f"market_selectors_{date_str}.json")
-            
-            if not os.path.exists(market_selectors_file):
-                print(f"✗ Market selectors file not found: {market_selectors_file}")
-                context.close()
-                browser.close()
-                return None
-            
-            print(f"✓ Loading market selectors from: {market_selectors_file}")
-            with open(market_selectors_file, 'r', encoding='utf-8') as f:
-                market_selectors_data = json.load(f)
-            print(f"✓ Loaded {len(market_selectors_data)} matches")
-
-            # Extract bets from market selectors
-            print("\n[STEP 5] Extracting bets from market selectors...")
-            print("=" * 60)
-            all_bets = self.extract_bets_from_market_selectors(market_selectors_data)
-            print(f"\n✓ Extracted {len(all_bets)} bets to place")
-            
             if not all_bets:
                 print("⚠ No bets to place")
             else:
@@ -1009,31 +997,30 @@ class BetwayAutomation:
                 for bet_type, bets_list in bet_types.items():
                     print(f"  {bet_type}: {len(bets_list)} bets")
                 
-                # Place each bet individually
-                print("\n[STEP 6] Placing single bets...")
+                print("\n[STEP 5] Placing single bets...")
                 print("=" * 60)
                 
                 for bet_idx, bet in enumerate(all_bets, 1):
                     print(f"\n--- Bet {bet_idx}/{len(all_bets)} ---")
                     self.place_single_bet(page, bet)
                     
-                    # Wait before next bet
                     if bet_idx < len(all_bets):
                         print(f"  Waiting before next bet...")
                         time.sleep(2)
-                
-                # Save all bets
-                print("\n[STEP 7] Saving bets...")
-                self.save_single_bets(all_bets, date_str)
 
-            print("\n[STEP 8] Final delay before closing...")
+            print("\n[STEP 6] Final delay before closing...")
             time.sleep(10)
             print("✓ Delay completed")
 
-            print("\n[STEP 9] Closing browser...")
+            print("\n[STEP 7] Closing browser...")
             context.close()
             browser.close()
             print("✓ Browser closed")
+
+        # Save to DB after exiting Playwright context (avoids async/sync ORM error)
+        if all_bets:
+            print("\n[STEP 8] Saving bets to database...")
+            self.save_single_bets(all_bets, date_str)
             
-            print("\n=== AUTOMATION COMPLETED ===")
-            return True
+        print("\n=== AUTOMATION COMPLETED ===")
+        return True

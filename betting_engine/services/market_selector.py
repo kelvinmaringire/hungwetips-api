@@ -31,7 +31,7 @@ class MarketSelector:
     
     def load_combined_data(self, date_str):
         """
-        Load combined tips & odds file.
+        Load combined tips & odds from database.
         
         Args:
             date_str: Date string in YYYY-MM-DD format
@@ -39,12 +39,21 @@ class MarketSelector:
         Returns:
             List of dictionaries containing tips & odds data
         """
-        file_path = self.data_dir / f'combined_{date_str}.json'
-        if not file_path.exists():
-            raise FileNotFoundError(f"Combined tips file not found: {file_path}")
+        from datetime import datetime
+        from betting_engine.models import CombinedMatch
         
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+        combined_match = CombinedMatch.objects.using('default').filter(date=date_obj).first()
+        
+        if not combined_match:
+            raise FileNotFoundError(f"No combined matches found for {date_str}. Run match_betway_forebet first.")
+        
+        # Get matches from JSONField
+        matches_data = combined_match.matches
+        if not isinstance(matches_data, list):
+            raise ValueError(f"CombinedMatch matches field is not a list for {date_str}")
+        
+        return matches_data
     
     def _safe_get(self, match, key, default=None):
         """Safely get value from match dict, handling None/null values."""
@@ -131,28 +140,18 @@ class MarketSelector:
     
     def select_and_save(self, date_str, output_filename=None):
         """
-        Select markets and save to JSON file.
+        Select markets and save to database.
         
         Args:
             date_str: Date string in YYYY-MM-DD format
-            output_filename: Optional custom output filename. Defaults to market_selectors_YYYY-MM-DD.json
+            output_filename: Optional (kept for compatibility, not used)
             
         Returns:
-            Path to the saved output file
+            String "DB" indicating data was saved to database
         """
         selected_matches = self.select_markets(date_str)
         
-        # Determine output filename
-        if output_filename:
-            output_path = self.data_dir / output_filename
-        else:
-            output_path = self.data_dir / f'market_selectors_{date_str}.json'
-        
-        # Save selected markets
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(selected_matches, f, indent=2, ensure_ascii=False)
-        
-        # Also save to database
+        # Save to database
         try:
             from datetime import datetime
             from betting_engine.importers import import_market_selectors
@@ -161,6 +160,7 @@ class MarketSelector:
             print(f"Database: Created {db_result['created']}, Updated {db_result['updated']}")
         except Exception as e:
             print(f"⚠ Database save failed: {str(e)}")
+            raise
         
         # Print summary statistics
         total_matches = len(selected_matches)
@@ -170,12 +170,12 @@ class MarketSelector:
         away_draw_count = sum(1 for m in selected_matches if m.get('away_draw_bet', False))
         over_1_5_count = sum(1 for m in selected_matches if m.get('over_1_5_bet', False))
         
-        print(f"\nMarket selectors saved to: {output_path}")
+        print(f"\nMarket selectors saved to database")
         print(f"  Total matches: {total_matches}")
-        print(f"  Home Over 0.5: {home_over_count} matches ({home_over_count/total_matches*100:.2f}%)")
-        print(f"  Away Over 0.5: {away_over_count} matches ({away_over_count/total_matches*100:.2f}%)")
-        print(f"  Home Draw: {home_draw_count} matches ({home_draw_count/total_matches*100:.2f}%)")
-        print(f"  Away Draw: {away_draw_count} matches ({away_draw_count/total_matches*100:.2f}%)")
-        print(f"  Over 1.5 Goals: {over_1_5_count} matches ({over_1_5_count/total_matches*100:.2f}%)")
+        print(f"  Home Over 0.5: {home_over_count} matches ({home_over_count/total_matches*100:.2f}%)" if total_matches > 0 else "  Home Over 0.5: 0 matches")
+        print(f"  Away Over 0.5: {away_over_count} matches ({away_over_count/total_matches*100:.2f}%)" if total_matches > 0 else "  Away Over 0.5: 0 matches")
+        print(f"  Home Draw: {home_draw_count} matches ({home_draw_count/total_matches*100:.2f}%)" if total_matches > 0 else "  Home Draw: 0 matches")
+        print(f"  Away Draw: {away_draw_count} matches ({away_draw_count/total_matches*100:.2f}%)" if total_matches > 0 else "  Away Draw: 0 matches")
+        print(f"  Over 1.5 Goals: {over_1_5_count} matches ({over_1_5_count/total_matches*100:.2f}%)" if total_matches > 0 else "  Over 1.5 Goals: 0 matches")
         
-        return output_path
+        return "DB"

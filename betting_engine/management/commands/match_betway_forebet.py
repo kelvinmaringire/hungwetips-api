@@ -59,13 +59,17 @@ class Command(BaseCommand):
                 output_filename=options['output']
             )
             
-            # Load the combined data to show statistics
-            import json
-            with open(output_path, 'r', encoding='utf-8') as f:
-                combined_data = json.load(f)
+            # Load the combined data from database to show statistics
+            from betting_engine.models import CombinedMatch
             
-            total_games = len(combined_data)
-            matched_games = sum(1 for game in combined_data if game.get('forebet_match_id') is not None)
+            combined_match = CombinedMatch.objects.using('default').filter(date=date_obj).first()
+            
+            if not combined_match:
+                raise CommandError(f"No combined matches found for {date_str}")
+            
+            matches_data = combined_match.matches if isinstance(combined_match.matches, list) else []
+            total_games = len(matches_data)
+            matched_games = sum(1 for m in matches_data if m.get('forebet_match_id') is not None)
             unmatched_games = total_games - matched_games
             
             self.stdout.write(self.style.SUCCESS(f"\nMatching completed successfully!"))
@@ -74,10 +78,10 @@ class Command(BaseCommand):
             self.stdout.write(f"Matched games: {matched_games}")
             self.stdout.write(f"Unmatched games: {unmatched_games}")
             self.stdout.write(f"Match rate: {(matched_games/total_games*100):.1f}%" if total_games > 0 else "N/A")
-            self.stdout.write(f"\nOutput saved to: {output_path}")
+            self.stdout.write(f"\nOutput saved to: database")
             
             # Show sample matched game
-            matched_samples = [g for g in combined_data if g.get('forebet_match_id') is not None]
+            matched_samples = [m for m in matches_data if m.get('forebet_match_id') is not None]
             if matched_samples:
                 sample = matched_samples[0]
                 self.stdout.write(f"\n=== SAMPLE MATCHED GAME ===")

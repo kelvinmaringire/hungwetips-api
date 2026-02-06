@@ -4,38 +4,18 @@ Handles serialization of matches, odds, tips, results, and betting data.
 """
 from rest_framework import serializers
 from .models import (
-    Match, BetwayOdds, ForebetTip, ForebetResult,
-    CombinedMatch, MarketSelection, SingleBetSnapshot
+    BetwayOdds, ForebetTip, ForebetResult,
+    CombinedMatch, MarketSelection, SingleBetSnapshot, MergedMatch
 )
-
-
-class MatchSerializer(serializers.ModelSerializer):
-    """Serializer for Match model."""
-    
-    class Meta:
-        model = Match
-        fields = (
-            'id', 'date', 'time', 'home_team', 'away_team',
-            'country', 'league_name', 'forebet_match_id',
-            'game_url', 'game_link', 'created_at', 'updated_at'
-        )
-        read_only_fields = ('id', 'created_at', 'updated_at')
 
 
 class BetwayOddsSerializer(serializers.ModelSerializer):
     """Serializer for BetwayOdds model."""
-    match = MatchSerializer(read_only=True)
-    match_id = serializers.PrimaryKeyRelatedField(
-        queryset=Match.objects.all(),
-        source='match',
-        write_only=True,
-        required=False
-    )
     
     class Meta:
         model = BetwayOdds
         fields = (
-            'id', 'match', 'match_id', 'date', 'odds_data',
+            'id', 'date', 'matches',
             'created_at', 'updated_at'
         )
         read_only_fields = ('id', 'created_at', 'updated_at')
@@ -43,23 +23,11 @@ class BetwayOddsSerializer(serializers.ModelSerializer):
 
 class ForebetTipSerializer(serializers.ModelSerializer):
     """Serializer for ForebetTip model."""
-    match = MatchSerializer(read_only=True)
-    match_id = serializers.PrimaryKeyRelatedField(
-        queryset=Match.objects.all(),
-        source='match',
-        write_only=True,
-        required=False,
-        allow_null=True
-    )
     
     class Meta:
         model = ForebetTip
         fields = (
-            'id', 'forebet_match_id', 'match', 'match_id', 'date',
-            'country', 'league_name', 'home_team', 'away_team',
-            'game_link', 'preview_link', 'preview_html',
-            'prob_1', 'prob_x', 'prob_2', 'pred',
-            'home_pred_score', 'away_pred_score', 'avg_goals', 'kelly',
+            'id', 'date', 'tips',
             'created_at', 'updated_at'
         )
         read_only_fields = ('id', 'created_at', 'updated_at')
@@ -71,9 +39,7 @@ class ForebetResultSerializer(serializers.ModelSerializer):
     class Meta:
         model = ForebetResult
         fields = (
-            'id', 'forebet_match_id', 'date',
-            'home_correct_score', 'away_correct_score',
-            'home_ht_score', 'away_ht_score',
+            'id', 'date', 'results',
             'created_at', 'updated_at'
         )
         read_only_fields = ('id', 'created_at', 'updated_at')
@@ -81,39 +47,32 @@ class ForebetResultSerializer(serializers.ModelSerializer):
 
 class CombinedMatchSerializer(serializers.ModelSerializer):
     """Serializer for CombinedMatch model."""
-    match = MatchSerializer(read_only=True)
-    match_id = serializers.PrimaryKeyRelatedField(
-        queryset=Match.objects.all(),
-        source='match',
-        write_only=True,
-        required=False
-    )
     
     class Meta:
         model = CombinedMatch
         fields = (
-            'id', 'match', 'match_id', 'date', 'match_confidence',
-            'payload', 'created_at', 'updated_at'
+            'id', 'date', 'time', 'home_team', 'away_team', 'game_url', 'match_confidence',
+            'home_win', 'draw', 'away_win', 'home_draw_no_bet', 'away_draw_no_bet',
+            'home_draw_odds', 'away_draw_odds', 'home_away_odds',
+            'total_over_1_5', 'total_under_3_5', 'BTTS_yes', 'BTTS_no',
+            'home_team_over_0_5', 'away_team_over_0_5',
+            'forebet_match_id', 'forebet_country', 'forebet_league_name',
+            'forebet_game_link', 'forebet_preview_link',
+            'forebet_prob_1', 'forebet_prob_x', 'forebet_prob_2', 'forebet_pred',
+            'forebet_home_pred_score', 'forebet_away_pred_score',
+            'forebet_avg_goals', 'forebet_kelly', 'payload',
+            'created_at', 'updated_at'
         )
         read_only_fields = ('id', 'created_at', 'updated_at')
 
 
 class MarketSelectionSerializer(serializers.ModelSerializer):
     """Serializer for MarketSelection model."""
-    match = MatchSerializer(read_only=True)
-    match_id = serializers.PrimaryKeyRelatedField(
-        queryset=Match.objects.all(),
-        source='match',
-        write_only=True,
-        required=False
-    )
     
     class Meta:
         model = MarketSelection
         fields = (
-            'id', 'match', 'match_id', 'date',
-            'home_over_bet', 'away_over_bet', 'home_draw_bet',
-            'away_draw_bet', 'over_1_5_bet', 'extra_data',
+            'id', 'date', 'selections',
             'created_at', 'updated_at'
         )
         read_only_fields = ('id', 'created_at', 'updated_at')
@@ -125,8 +84,19 @@ class SingleBetSnapshotSerializer(serializers.ModelSerializer):
     class Meta:
         model = SingleBetSnapshot
         fields = (
-            'id', 'date', 'timestamp', 'total_bets',
-            'placed_bets', 'failed_bets', 'bets',
+            'id', 'date', 'snapshot',
+            'created_at', 'updated_at'
+        )
+        read_only_fields = ('id', 'created_at', 'updated_at')
+
+
+class MergedMatchSerializer(serializers.ModelSerializer):
+    """Serializer for MergedMatch model."""
+    
+    class Meta:
+        model = MergedMatch
+        fields = (
+            'id', 'date', 'rows',
             'created_at', 'updated_at'
         )
         read_only_fields = ('id', 'created_at', 'updated_at')

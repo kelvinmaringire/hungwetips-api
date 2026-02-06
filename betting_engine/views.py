@@ -6,17 +6,16 @@ import json
 from rest_framework import generics, status, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.db.models import Q
 from django.utils.dateparse import parse_date
 
 from .models import (
-    Match, BetwayOdds, ForebetTip, ForebetResult,
-    CombinedMatch, MarketSelection, SingleBetSnapshot
+    BetwayOdds, ForebetTip, ForebetResult,
+    CombinedMatch, MarketSelection, SingleBetSnapshot, MergedMatch
 )
 from .serializers import (
-    MatchSerializer, BetwayOddsSerializer, ForebetTipSerializer,
+    BetwayOddsSerializer, ForebetTipSerializer,
     ForebetResultSerializer, CombinedMatchSerializer, MarketSelectionSerializer,
-    SingleBetSnapshotSerializer,
+    SingleBetSnapshotSerializer, MergedMatchSerializer,
     BetwayOddsUploadSerializer, ForebetTipsUploadSerializer,
     ForebetResultsUploadSerializer, CombinedMatchUploadSerializer,
     MergedMatchUploadSerializer, MarketSelectorsUploadSerializer,
@@ -29,57 +28,6 @@ from .importers import (
 )
 
 
-# Match Views
-class MatchListView(generics.ListAPIView):
-    """List matches with filtering by date, league, team."""
-    serializer_class = MatchSerializer
-    permission_classes = [permissions.AllowAny]
-    
-    def get_queryset(self):
-        queryset = Match.objects.all()
-        
-        # Filter by date
-        date_str = self.request.query_params.get('date', None)
-        if date_str:
-            date = parse_date(date_str)
-            if date:
-                queryset = queryset.filter(date=date)
-        
-        # Filter by country
-        country = self.request.query_params.get('country', None)
-        if country:
-            queryset = queryset.filter(country__icontains=country)
-        
-        # Filter by league
-        league = self.request.query_params.get('league', None)
-        if league:
-            queryset = queryset.filter(league_name__icontains=league)
-        
-        # Filter by team (home or away)
-        team = self.request.query_params.get('team', None)
-        if team:
-            queryset = queryset.filter(
-                Q(home_team__icontains=team) | Q(away_team__icontains=team)
-            )
-        
-        # Filter by forebet_match_id
-        forebet_match_id = self.request.query_params.get('forebet_match_id', None)
-        if forebet_match_id:
-            try:
-                queryset = queryset.filter(forebet_match_id=int(forebet_match_id))
-            except ValueError:
-                pass
-        
-        return queryset
-
-
-class MatchDetailView(generics.RetrieveAPIView):
-    """Retrieve a single match."""
-    queryset = Match.objects.all()
-    serializer_class = MatchSerializer
-    permission_classes = [permissions.AllowAny]
-
-
 # BetwayOdds Views
 class BetwayOddsListView(generics.ListAPIView):
     """List Betway odds with filtering."""
@@ -87,7 +35,7 @@ class BetwayOddsListView(generics.ListAPIView):
     permission_classes = [permissions.AllowAny]
     
     def get_queryset(self):
-        queryset = BetwayOdds.objects.select_related('match').all()
+        queryset = BetwayOdds.objects.all()
         
         date_str = self.request.query_params.get('date', None)
         if date_str:
@@ -95,16 +43,12 @@ class BetwayOddsListView(generics.ListAPIView):
             if date:
                 queryset = queryset.filter(date=date)
         
-        match_id = self.request.query_params.get('match_id', None)
-        if match_id:
-            queryset = queryset.filter(match_id=match_id)
-        
         return queryset
 
 
 class BetwayOddsDetailView(generics.RetrieveAPIView):
     """Retrieve a single BetwayOdds record."""
-    queryset = BetwayOdds.objects.select_related('match').all()
+    queryset = BetwayOdds.objects.all()
     serializer_class = BetwayOddsSerializer
     permission_classes = [permissions.AllowAny]
 
@@ -116,7 +60,7 @@ class ForebetTipListView(generics.ListAPIView):
     permission_classes = [permissions.AllowAny]
     
     def get_queryset(self):
-        queryset = ForebetTip.objects.select_related('match').all()
+        queryset = ForebetTip.objects.all()
         
         date_str = self.request.query_params.get('date', None)
         if date_str:
@@ -124,19 +68,12 @@ class ForebetTipListView(generics.ListAPIView):
             if date:
                 queryset = queryset.filter(date=date)
         
-        forebet_match_id = self.request.query_params.get('forebet_match_id', None)
-        if forebet_match_id:
-            try:
-                queryset = queryset.filter(forebet_match_id=int(forebet_match_id))
-            except ValueError:
-                pass
-        
         return queryset
 
 
 class ForebetTipDetailView(generics.RetrieveAPIView):
     """Retrieve a single ForebetTip record."""
-    queryset = ForebetTip.objects.select_related('match').all()
+    queryset = ForebetTip.objects.all()
     serializer_class = ForebetTipSerializer
     permission_classes = [permissions.AllowAny]
 
@@ -156,13 +93,6 @@ class ForebetResultListView(generics.ListAPIView):
             if date:
                 queryset = queryset.filter(date=date)
         
-        forebet_match_id = self.request.query_params.get('forebet_match_id', None)
-        if forebet_match_id:
-            try:
-                queryset = queryset.filter(forebet_match_id=int(forebet_match_id))
-            except ValueError:
-                pass
-        
         return queryset
 
 
@@ -180,7 +110,7 @@ class CombinedMatchListView(generics.ListAPIView):
     permission_classes = [permissions.AllowAny]
     
     def get_queryset(self):
-        queryset = CombinedMatch.objects.select_related('match').all()
+        queryset = CombinedMatch.objects.all()
         
         date_str = self.request.query_params.get('date', None)
         if date_str:
@@ -188,16 +118,12 @@ class CombinedMatchListView(generics.ListAPIView):
             if date:
                 queryset = queryset.filter(date=date)
         
-        match_id = self.request.query_params.get('match_id', None)
-        if match_id:
-            queryset = queryset.filter(match_id=match_id)
-        
         return queryset
 
 
 class CombinedMatchDetailView(generics.RetrieveAPIView):
     """Retrieve a single CombinedMatch record."""
-    queryset = CombinedMatch.objects.select_related('match').all()
+    queryset = CombinedMatch.objects.all()
     serializer_class = CombinedMatchSerializer
     permission_classes = [permissions.AllowAny]
 
@@ -209,7 +135,7 @@ class MarketSelectionListView(generics.ListAPIView):
     permission_classes = [permissions.AllowAny]
     
     def get_queryset(self):
-        queryset = MarketSelection.objects.select_related('match').all()
+        queryset = MarketSelection.objects.all()
         
         date_str = self.request.query_params.get('date', None)
         if date_str:
@@ -217,9 +143,12 @@ class MarketSelectionListView(generics.ListAPIView):
             if date:
                 queryset = queryset.filter(date=date)
         
-        match_id = self.request.query_params.get('match_id', None)
-        if match_id:
-            queryset = queryset.filter(match_id=match_id)
+        # Filter by team
+        team = self.request.query_params.get('team', None)
+        if team:
+            queryset = queryset.filter(
+                Q(home_team__icontains=team) | Q(away_team__icontains=team)
+            )
         
         # Filter by bet flags
         home_over = self.request.query_params.get('home_over_bet', None)
@@ -239,7 +168,7 @@ class MarketSelectionListView(generics.ListAPIView):
 
 class MarketSelectionDetailView(generics.RetrieveAPIView):
     """Retrieve a single MarketSelection record."""
-    queryset = MarketSelection.objects.select_related('match').all()
+    queryset = MarketSelection.objects.all()
     serializer_class = MarketSelectionSerializer
     permission_classes = [permissions.AllowAny]
 
@@ -266,6 +195,31 @@ class SingleBetSnapshotDetailView(generics.RetrieveAPIView):
     """Retrieve a single SingleBetSnapshot record."""
     queryset = SingleBetSnapshot.objects.all()
     serializer_class = SingleBetSnapshotSerializer
+    permission_classes = [permissions.AllowAny]
+
+
+# MergedMatch Views
+class MergedMatchListView(generics.ListAPIView):
+    """List merged matches with filtering."""
+    serializer_class = MergedMatchSerializer
+    permission_classes = [permissions.AllowAny]
+    
+    def get_queryset(self):
+        queryset = MergedMatch.objects.all()
+        
+        date_str = self.request.query_params.get('date', None)
+        if date_str:
+            date = parse_date(date_str)
+            if date:
+                queryset = queryset.filter(date=date)
+        
+        return queryset
+
+
+class MergedMatchDetailView(generics.RetrieveAPIView):
+    """Retrieve a single MergedMatch record."""
+    queryset = MergedMatch.objects.all()
+    serializer_class = MergedMatchSerializer
     permission_classes = [permissions.AllowAny]
 
 

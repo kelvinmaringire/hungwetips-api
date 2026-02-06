@@ -1,329 +1,390 @@
 """
-Import logic for betting data.
-Handles parsing JSON and creating/updating database models.
+Import functions for betting data.
+Handles saving data to both default and analytics databases.
 """
-import json
-from datetime import datetime, date
-from typing import List, Dict, Optional
-from django.db import transaction
-from django.utils.dateparse import parse_date
-
+from datetime import datetime
 from .models import (
-    Match, BetwayOdds, ForebetTip, ForebetResult,
-    CombinedMatch, MarketSelection, SingleBetSnapshot
+    BetwayOdds, ForebetTip, ForebetResult, CombinedMatch,
+    MarketSelection, SingleBetSnapshot, MergedMatch
 )
 
 
-def get_or_create_match(match_data: Dict, date: date) -> Match:
+def import_betway_odds(date, matches_list, using=None):
     """
-    Get or create a Match instance.
-    Tries to match by forebet_match_id first, then by (date, home_team, away_team).
+    Import Betway odds data for a date.
+    
+    Args:
+        date: Date object for the matches
+        matches_list: List of match dictionaries with odds data
+        using: Database alias ('default', 'analytics', or None for both)
+    
+    Returns:
+        dict with 'created' and 'updated' counts
     """
-    forebet_match_id = match_data.get('forebet_match_id') or match_data.get('match_id')
+    if not matches_list:
+        return {'created': 0, 'updated': 0}
     
-    if forebet_match_id:
-        match, created = Match.objects.get_or_create(
-            forebet_match_id=forebet_match_id,
-            defaults={
-                'date': date,
-                'time': match_data.get('time'),
-                'home_team': match_data.get('home_team', ''),
-                'away_team': match_data.get('away_team', ''),
-                'country': match_data.get('country') or match_data.get('forebet_country'),
-                'league_name': match_data.get('league_name') or match_data.get('forebet_league_name'),
-                'game_url': match_data.get('game_url'),
-                'game_link': match_data.get('game_link') or match_data.get('forebet_game_link'),
-            }
-        )
-        if not created:
-            # Update fields if match exists
-            match.date = date
-            if match_data.get('time'):
-                match.time = match_data.get('time')
-            if match_data.get('game_url'):
-                match.game_url = match_data.get('game_url')
-            if match_data.get('game_link') or match_data.get('forebet_game_link'):
-                match.game_link = match_data.get('game_link') or match_data.get('forebet_game_link')
-            match.save()
-        return match
+    # Ensure matches_list is a list
+    if not isinstance(matches_list, list):
+        raise ValueError("matches_list must be a list")
     
-    # Try to find by teams and date
-    home_team = match_data.get('home_team', '')
-    away_team = match_data.get('away_team', '')
+    created = 0
+    updated = 0
     
-    if home_team and away_team:
-        match, created = Match.objects.get_or_create(
+    if using is None:
+        # Save to both databases
+        obj_default, created_flag = BetwayOdds.objects.using('default').get_or_create(
             date=date,
-            home_team=home_team,
-            away_team=away_team,
-            defaults={
-                'time': match_data.get('time'),
-                'country': match_data.get('country') or match_data.get('forebet_country'),
-                'league_name': match_data.get('league_name') or match_data.get('forebet_league_name'),
-                'game_url': match_data.get('game_url'),
-                'game_link': match_data.get('game_link') or match_data.get('forebet_game_link'),
-            }
+            defaults={'matches': matches_list}
         )
-        if not created:
-            # Update fields
-            if match_data.get('time'):
-                match.time = match_data.get('time')
-            if match_data.get('game_url'):
-                match.game_url = match_data.get('game_url')
-            if match_data.get('game_link') or match_data.get('forebet_game_link'):
-                match.game_link = match_data.get('game_link') or match_data.get('forebet_game_link')
-            match.save()
-        return match
-    
-    raise ValueError(f"Cannot create match: missing required fields (home_team, away_team, or forebet_match_id)")
-
-
-@transaction.atomic
-def import_betway_odds(date: date, data: List[Dict]) -> Dict[str, int]:
-    """Import Betway odds data."""
-    created_count = 0
-    updated_count = 0
-    
-    for item in data:
-        match = get_or_create_match(item, date)
+        if not created_flag:
+            obj_default.matches = matches_list
+            obj_default.save(using='default')
+            updated += 1
+        else:
+            created += 1
         
-        # Prepare odds_data (all fields except match identifying fields)
-        odds_data = {k: v for k, v in item.items() 
-                    if k not in ['home_team', 'away_team', 'date', 'time', 'game_url', 
-                                'country', 'league_name', 'forebet_match_id', 'match_id']}
-        
-        betway_odds, created = BetwayOdds.objects.update_or_create(
-            match=match,
+        # Save to analytics DB
+        obj_analytics, created_flag = BetwayOdds.objects.using('analytics').get_or_create(
             date=date,
-            defaults={'odds_data': odds_data}
+            defaults={'matches': matches_list}
         )
+        if not created_flag:
+            obj_analytics.matches = matches_list
+            obj_analytics.save(using='analytics')
+        # Don't double-count created/updated for analytics
         
-        if created:
-            created_count += 1
-        else:
-            updated_count += 1
-    
-    return {'created': created_count, 'updated': updated_count}
-
-
-@transaction.atomic
-def import_forebet_tips(date: date, data: List[Dict]) -> Dict[str, int]:
-    """Import Forebet tips data."""
-    created_count = 0
-    updated_count = 0
-    
-    for item in data:
-        match_id = item.get('match_id')
-        if not match_id:
-            continue
-        
-        # Try to find existing match
-        match = None
-        try:
-            match = Match.objects.get(forebet_match_id=match_id)
-        except Match.DoesNotExist:
-            # Create match if doesn't exist
-            match = Match.objects.create(
-                forebet_match_id=match_id,
-                date=date,
-                time=item.get('time'),
-                home_team=item.get('home_team', ''),
-                away_team=item.get('away_team', ''),
-                country=item.get('country'),
-                league_name=item.get('league_name'),
-                game_link=item.get('game_link'),
-            )
-        
-        tip, created = ForebetTip.objects.update_or_create(
-            forebet_match_id=match_id,
-            date=date,
-            defaults={
-                'match': match,
-                'country': item.get('country'),
-                'league_name': item.get('league_name'),
-                'home_team': item.get('home_team', ''),
-                'away_team': item.get('away_team', ''),
-                'game_link': item.get('game_link'),
-                'preview_link': item.get('preview_link'),
-                'preview_html': item.get('preview_html'),
-                'prob_1': item.get('prob_1'),
-                'prob_x': item.get('prob_x'),
-                'prob_2': item.get('prob_2'),
-                'pred': item.get('pred'),
-                'home_pred_score': item.get('home_pred_score'),
-                'away_pred_score': item.get('away_pred_score'),
-                'avg_goals': item.get('avg_goals'),
-                'kelly': item.get('kelly'),
-            }
-        )
-        
-        if created:
-            created_count += 1
-        else:
-            updated_count += 1
-    
-    return {'created': created_count, 'updated': updated_count}
-
-
-@transaction.atomic
-def import_forebet_results(date: date, data: List[Dict]) -> Dict[str, int]:
-    """Import Forebet results data."""
-    created_count = 0
-    updated_count = 0
-    
-    for item in data:
-        match_id = item.get('match_id')
-        if not match_id:
-            continue
-        
-        result, created = ForebetResult.objects.update_or_create(
-            forebet_match_id=match_id,
-            date=date,
-            defaults={
-                'home_correct_score': item.get('home_correct_score'),
-                'away_correct_score': item.get('away_correct_score'),
-                'home_ht_score': item.get('home_ht_score'),
-                'away_ht_score': item.get('away_ht_score'),
-            }
-        )
-        
-        if created:
-            created_count += 1
-        else:
-            updated_count += 1
-    
-    return {'created': created_count, 'updated': updated_count}
-
-
-@transaction.atomic
-def import_combined_matches(date: date, data: List[Dict]) -> Dict[str, int]:
-    """Import combined match data."""
-    created_count = 0
-    updated_count = 0
-    
-    for item in data:
-        match = get_or_create_match(item, date)
-        
-        match_confidence = item.get('match_confidence')
-        
-        combined_match, created = CombinedMatch.objects.update_or_create(
-            match=match,
-            date=date,
-            defaults={
-                'match_confidence': match_confidence,
-                'payload': item,  # Store full payload
-            }
-        )
-        
-        if created:
-            created_count += 1
-        else:
-            updated_count += 1
-    
-    return {'created': created_count, 'updated': updated_count}
-
-
-@transaction.atomic
-def import_merged_matches(date: date, data: List[Dict]) -> Dict[str, int]:
-    """Import merged match data (combined + results)."""
-    # Merged is similar to combined but may have result fields
-    # We'll treat it as combined_match with result data
-    created_count = 0
-    updated_count = 0
-    
-    for item in data:
-        match = get_or_create_match(item, date)
-        
-        match_confidence = item.get('match_confidence')
-        
-        combined_match, created = CombinedMatch.objects.update_or_create(
-            match=match,
-            date=date,
-            defaults={
-                'match_confidence': match_confidence,
-                'payload': item,  # Store full merged payload
-            }
-        )
-        
-        # Also update/create result if scores are present
-        match_id = item.get('forebet_match_id') or item.get('match_id')
-        if match_id and (item.get('home_correct_score') is not None or item.get('away_correct_score') is not None):
-            ForebetResult.objects.update_or_create(
-                forebet_match_id=match_id,
-                date=date,
-                defaults={
-                    'home_correct_score': item.get('home_correct_score'),
-                    'away_correct_score': item.get('away_correct_score'),
-                    'home_ht_score': item.get('home_ht_score'),
-                    'away_ht_score': item.get('away_ht_score'),
-                }
-            )
-        
-        if created:
-            created_count += 1
-        else:
-            updated_count += 1
-    
-    return {'created': created_count, 'updated': updated_count}
-
-
-@transaction.atomic
-def import_market_selectors(date: date, data: List[Dict]) -> Dict[str, int]:
-    """Import market selector data."""
-    created_count = 0
-    updated_count = 0
-    
-    for item in data:
-        match = get_or_create_match(item, date)
-        
-        market_selection, created = MarketSelection.objects.update_or_create(
-            match=match,
-            date=date,
-            defaults={
-                'home_over_bet': item.get('home_over_bet', False),
-                'away_over_bet': item.get('away_over_bet', False),
-                'home_draw_bet': item.get('home_draw_bet', False),
-                'away_draw_bet': item.get('away_draw_bet', False),
-                'over_1_5_bet': item.get('over_1_5_bet', False),
-                'extra_data': {k: v for k, v in item.items() 
-                              if k not in ['home_team', 'away_team', 'date', 'time', 'game_url',
-                                          'home_over_bet', 'away_over_bet', 'home_draw_bet',
-                                          'away_draw_bet', 'over_1_5_bet', 'forebet_match_id', 'match_id']},
-            }
-        )
-        
-        if created:
-            created_count += 1
-        else:
-            updated_count += 1
-    
-    return {'created': created_count, 'updated': updated_count}
-
-
-@transaction.atomic
-def import_single_bets(date: date, data: Dict) -> Dict[str, int]:
-    """Import single bets snapshot data."""
-    timestamp_str = data.get('timestamp')
-    if timestamp_str:
-        if isinstance(timestamp_str, str):
-            try:
-                timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-            except:
-                timestamp = datetime.now()
-        else:
-            timestamp = timestamp_str
+        return {'created': created, 'updated': updated}
     else:
-        timestamp = datetime.now()
+        # Save to specific database
+        obj, created_flag = BetwayOdds.objects.using(using).get_or_create(
+            date=date,
+            defaults={'matches': matches_list}
+        )
+        if not created_flag:
+            obj.matches = matches_list
+            obj.save(using=using)
+            updated = 1
+        else:
+            created = 1
+        
+        return {'created': created, 'updated': updated}
+
+
+def import_forebet_tips(date, tips_list, using=None):
+    """
+    Import Forebet tips data for a date.
     
-    snapshot, created = SingleBetSnapshot.objects.update_or_create(
+    Args:
+        date: Date object for the tips
+        tips_list: List of tip dictionaries
+        using: Database alias ('default', 'analytics', or None for both)
+    
+    Returns:
+        dict with 'created' and 'updated' counts
+    """
+    if not tips_list:
+        return {'created': 0, 'updated': 0}
+    
+    if not isinstance(tips_list, list):
+        raise ValueError("tips_list must be a list")
+    
+    created = 0
+    updated = 0
+    
+    if using is None:
+        # Save to both databases
+        obj_default, created_flag = ForebetTip.objects.using('default').get_or_create(
+            date=date,
+            defaults={'tips': tips_list}
+        )
+        if not created_flag:
+            obj_default.tips = tips_list
+            obj_default.save(using='default')
+            updated += 1
+        else:
+            created += 1
+        obj_analytics, created_analytics = ForebetTip.objects.using('analytics').get_or_create(
+            date=date,
+            defaults={'tips': tips_list}
+        )
+        if not created_analytics:
+            obj_analytics.tips = tips_list
+            obj_analytics.save(using='analytics')
+        return {'created': created, 'updated': updated}
+    
+    obj, created_flag = ForebetTip.objects.using(using).get_or_create(
         date=date,
-        defaults={
-            'timestamp': timestamp,
-            'total_bets': data.get('total_bets', 0),
-            'placed_bets': data.get('placed_bets', 0),
-            'failed_bets': data.get('failed_bets', 0),
-            'bets': data.get('bets', []),
-        }
+        defaults={'tips': tips_list}
     )
+    if not created_flag:
+        obj.tips = tips_list
+        obj.save(using=using)
+        return {'created': 0, 'updated': 1}
+    return {'created': 1, 'updated': 0}
+
+
+def import_forebet_results(date, results_list, using=None):
+    """
+    Import Forebet results data for a date.
     
-    return {'created': 1 if created else 0, 'updated': 0 if created else 1}
+    Args:
+        date: Date object for the results
+        results_list: List of result dictionaries
+        using: Database alias ('default', 'analytics', or None for both)
+    
+    Returns:
+        dict with 'created' and 'updated' counts
+    """
+    if not results_list:
+        return {'created': 0, 'updated': 0}
+    
+    if not isinstance(results_list, list):
+        raise ValueError("results_list must be a list")
+    
+    created = 0
+    updated = 0
+    
+    if using is None:
+        # Save to both databases
+        obj_default, created_flag = ForebetResult.objects.using('default').get_or_create(
+            date=date,
+            defaults={'results': results_list}
+        )
+        if not created_flag:
+            obj_default.results = results_list
+            obj_default.save(using='default')
+            updated += 1
+        else:
+            created += 1
+        obj_analytics, created_analytics = ForebetResult.objects.using('analytics').get_or_create(
+            date=date,
+            defaults={'results': results_list}
+        )
+        if not created_analytics:
+            obj_analytics.results = results_list
+            obj_analytics.save(using='analytics')
+        return {'created': created, 'updated': updated}
+    
+    obj, created_flag = ForebetResult.objects.using(using).get_or_create(
+        date=date,
+        defaults={'results': results_list}
+    )
+    if not created_flag:
+        obj.results = results_list
+        obj.save(using=using)
+        return {'created': 0, 'updated': 1}
+    return {'created': 1, 'updated': 0}
+
+
+def import_combined_matches(date, matches_list, using=None):
+    """
+    Import combined matches (Betway + Forebet) data for a date.
+    
+    Args:
+        date: Date object for the matches
+        matches_list: List of combined match dictionaries
+        using: Database alias ('default', 'analytics', or None for both)
+    
+    Returns:
+        dict with 'created' and 'updated' counts
+    """
+    if not matches_list:
+        return {'created': 0, 'updated': 0}
+    
+    if not isinstance(matches_list, list):
+        raise ValueError("matches_list must be a list")
+    
+    created = 0
+    updated = 0
+    
+    if using is None:
+        # Save to both databases
+        obj_default, created_flag = CombinedMatch.objects.using('default').get_or_create(
+            date=date,
+            defaults={'matches': matches_list}
+        )
+        if not created_flag:
+            obj_default.matches = matches_list
+            obj_default.save(using='default')
+            updated += 1
+        else:
+            created += 1
+        obj_analytics, created_analytics = CombinedMatch.objects.using('analytics').get_or_create(
+            date=date,
+            defaults={'matches': matches_list}
+        )
+        if not created_analytics:
+            obj_analytics.matches = matches_list
+            obj_analytics.save(using='analytics')
+        return {'created': created, 'updated': updated}
+    
+    obj, created_flag = CombinedMatch.objects.using(using).get_or_create(
+        date=date,
+        defaults={'matches': matches_list}
+    )
+    if not created_flag:
+        obj.matches = matches_list
+        obj.save(using=using)
+        return {'created': 0, 'updated': 1}
+    return {'created': 1, 'updated': 0}
+
+
+def import_merged_matches(date, matches_list, using=None):
+    """
+    Import merged matches (tips + results) data for a date.
+    
+    Args:
+        date: Date object for the merged matches
+        matches_list: List of merged match dictionaries
+        using: Database alias ('default', 'analytics', or None for both)
+    
+    Returns:
+        dict with 'created' and 'updated' counts
+    """
+    if not matches_list:
+        return {'created': 0, 'updated': 0}
+    
+    if not isinstance(matches_list, list):
+        raise ValueError("matches_list must be a list")
+    
+    created = 0
+    updated = 0
+    
+    if using is None:
+        # Save to both databases
+        obj_default, created_flag = MergedMatch.objects.using('default').get_or_create(
+            date=date,
+            defaults={'rows': matches_list}
+        )
+        if not created_flag:
+            obj_default.rows = matches_list
+            obj_default.save(using='default')
+            updated += 1
+        else:
+            created += 1
+        obj_analytics, created_analytics = MergedMatch.objects.using('analytics').get_or_create(
+            date=date,
+            defaults={'rows': matches_list}
+        )
+        if not created_analytics:
+            obj_analytics.rows = matches_list
+            obj_analytics.save(using='analytics')
+        return {'created': created, 'updated': updated}
+    
+    obj, created_flag = MergedMatch.objects.using(using).get_or_create(
+        date=date,
+        defaults={'rows': matches_list}
+    )
+    if not created_flag:
+        obj.rows = matches_list
+        obj.save(using=using)
+        return {'created': 0, 'updated': 1}
+    return {'created': 1, 'updated': 0}
+
+
+def import_market_selectors(date, selections_list, using=None):
+    """
+    Import market selections data for a date.
+    
+    Args:
+        date: Date object for the selections
+        selections_list: List of selection dictionaries
+        using: Database alias ('default', 'analytics', or None for both)
+    
+    Returns:
+        dict with 'created' and 'updated' counts
+    """
+    if not selections_list:
+        return {'created': 0, 'updated': 0}
+    
+    if not isinstance(selections_list, list):
+        raise ValueError("selections_list must be a list")
+    
+    created = 0
+    updated = 0
+    
+    if using is None:
+        # Save to both databases
+        obj_default, created_flag = MarketSelection.objects.using('default').get_or_create(
+            date=date,
+            defaults={'selections': selections_list}
+        )
+        if not created_flag:
+            obj_default.selections = selections_list
+            obj_default.save(using='default')
+            updated += 1
+        else:
+            created += 1
+        obj_analytics, created_analytics = MarketSelection.objects.using('analytics').get_or_create(
+            date=date,
+            defaults={'selections': selections_list}
+        )
+        if not created_analytics:
+            obj_analytics.selections = selections_list
+            obj_analytics.save(using='analytics')
+        return {'created': created, 'updated': updated}
+    
+    obj, created_flag = MarketSelection.objects.using(using).get_or_create(
+        date=date,
+        defaults={'selections': selections_list}
+    )
+    if not created_flag:
+        obj.selections = selections_list
+        obj.save(using=using)
+        return {'created': 0, 'updated': 1}
+    return {'created': 1, 'updated': 0}
+
+
+def import_single_bets(date, bets_data, using=None):
+    """
+    Import single bet snapshot data for a date.
+    
+    Args:
+        date: Date object for the bets
+        bets_data: Dictionary with 'timestamp', 'total_bets', 'placed_bets', 'failed_bets', 'bets'
+        using: Database alias ('default', 'analytics', or None for both)
+    
+    Returns:
+        dict with 'created' and 'updated' counts
+    """
+    if not bets_data:
+        return {'created': 0, 'updated': 0}
+    
+    if not isinstance(bets_data, dict):
+        raise ValueError("bets_data must be a dictionary")
+    
+    snapshot = bets_data.copy()
+    created = 0
+    updated = 0
+    
+    if using is None:
+        # Save to both databases
+        obj_default, created_flag = SingleBetSnapshot.objects.using('default').get_or_create(
+            date=date,
+            defaults={'snapshot': snapshot}
+        )
+        if not created_flag:
+            obj_default.snapshot = snapshot
+            obj_default.save(using='default')
+            updated += 1
+        else:
+            created += 1
+        obj_analytics, created_analytics = SingleBetSnapshot.objects.using('analytics').get_or_create(
+            date=date,
+            defaults={'snapshot': snapshot}
+        )
+        if not created_analytics:
+            obj_analytics.snapshot = snapshot
+            obj_analytics.save(using='analytics')
+        return {'created': created, 'updated': updated}
+    
+    obj, created_flag = SingleBetSnapshot.objects.using(using).get_or_create(
+        date=date,
+        defaults={'snapshot': snapshot}
+    )
+    if not created_flag:
+        obj.snapshot = snapshot
+        obj.save(using=using)
+        return {'created': 0, 'updated': 1}
+    return {'created': 1, 'updated': 0}

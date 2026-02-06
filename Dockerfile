@@ -32,9 +32,9 @@ COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
-# Install Playwright (latest stable) - system deps + Chromium for Betway automation
-# https://github.com/microsoft/playwright
-RUN playwright install-deps && playwright install chromium
+# Install Playwright system deps + Chromium; cache browser binaries so rebuilds reuse them
+RUN --mount=type=cache,target=/root/.cache/ms-playwright \
+    playwright install-deps && playwright install chromium
 
 # Copy the app source
 COPY . .

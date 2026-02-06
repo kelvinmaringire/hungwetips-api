@@ -702,45 +702,26 @@ class ForebetScraper:
         print(f"{'='*60}")
     
     def save_results(self, tips: List[Dict], results: List[Dict]):
-        """Save scraped data to JSON files"""
-        data_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "betting_data"
-        )
-        
-        os.makedirs(data_dir, exist_ok=True)
-        
-        # Save tips
+        """Save scraped data to database only"""
+        # Save tips to database
         if tips:
             tomorrow = datetime.now() + timedelta(days=1)
             tips_date = tomorrow.date()
-            tips_file = os.path.join(data_dir, f"forebet_tips_{tomorrow.strftime('%Y-%m-%d')}.json")
-            with open(tips_file, 'w', encoding='utf-8') as f:
-                json.dump(tips, f, indent=2, ensure_ascii=False)
-            print(f"\nTips saved to: {tips_file}")
-            
-            # Also save to database
             try:
                 from betting_engine.importers import import_forebet_tips
                 db_result = import_forebet_tips(tips_date, tips)
-                print(f"Database: Created {db_result['created']}, Updated {db_result['updated']}")
+                print(f"\nTips saved to database: Created {db_result['created']}, Updated {db_result['updated']}")
             except Exception as e:
                 print(f"⚠ Database save failed: {str(e)}")
         
-        # Save results
+        # Save results to database
         if results:
             yesterday = datetime.now() - timedelta(days=1)
             results_date = yesterday.date()
-            results_file = os.path.join(data_dir, f"forebet_results_{yesterday.strftime('%Y-%m-%d')}.json")
-            with open(results_file, 'w', encoding='utf-8') as f:
-                json.dump(results, f, indent=2, ensure_ascii=False)
-            print(f"Results saved to: {results_file}")
-            
-            # Also save to database
             try:
                 from betting_engine.importers import import_forebet_results
                 db_result = import_forebet_results(results_date, results)
-                print(f"Database: Created {db_result['created']}, Updated {db_result['updated']}")
+                print(f"Results saved to database: Created {db_result['created']}, Updated {db_result['updated']}")
             except Exception as e:
                 print(f"⚠ Database save failed: {str(e)}")
 

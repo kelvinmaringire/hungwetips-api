@@ -26,7 +26,7 @@ class MergeYesterdayResults:
     
     def load_combined_tips(self, date_str):
         """
-        Load combined tips & odds file.
+        Load combined tips & odds from database.
         
         Args:
             date_str: Date string in YYYY-MM-DD format
@@ -34,16 +34,25 @@ class MergeYesterdayResults:
         Returns:
             List of dictionaries containing tips & odds data
         """
-        file_path = self.data_dir / f'combined_{date_str}.json'
-        if not file_path.exists():
-            raise FileNotFoundError(f"Combined tips file not found: {file_path}")
+        from datetime import datetime
+        from betting_engine.models import CombinedMatch
         
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+        combined_match = CombinedMatch.objects.using('default').filter(date=date_obj).first()
+        
+        if not combined_match:
+            raise FileNotFoundError(f"No combined matches found for {date_str}. Run match_betway_forebet first.")
+        
+        # Get matches from JSONField
+        tips_data = combined_match.matches
+        if not isinstance(tips_data, list):
+            raise ValueError(f"CombinedMatch matches field is not a list for {date_str}")
+        
+        return tips_data
     
     def load_results(self, date_str):
         """
-        Load results file.
+        Load results from database.
         
         Args:
             date_str: Date string in YYYY-MM-DD format
@@ -51,16 +60,24 @@ class MergeYesterdayResults:
         Returns:
             Dictionary mapping match_id to result data
         """
-        file_path = self.data_dir / f'forebet_results_{date_str}.json'
-        if not file_path.exists():
-            raise FileNotFoundError(f"Results file not found: {file_path}")
+        from datetime import datetime
+        from betting_engine.models import ForebetResult
         
-        with open(file_path, 'r', encoding='utf-8') as f:
-            results = json.load(f)
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+        forebet_result = ForebetResult.objects.using('default').filter(date=date_obj).first()
+        
+        if not forebet_result:
+            # Return empty dict if no results found
+            return {}
+        
+        # Get results from JSONField
+        results_list = forebet_result.results
+        if not isinstance(results_list, list):
+            return {}
         
         # Create a dictionary indexed by match_id for quick lookup
         results_dict = {}
-        for result in results:
+        for result in results_list:
             match_id = result.get('match_id')
             if match_id:
                 results_dict[match_id] = result
@@ -137,28 +154,18 @@ class MergeYesterdayResults:
     
     def merge_and_save(self, date_str, output_filename=None):
         """
-        Merge tips with results and save to file.
+        Merge tips with results and save to database.
         
         Args:
             date_str: Date string in YYYY-MM-DD format
-            output_filename: Optional custom output filename. Defaults to merged_YYYY-MM-DD.json
+            output_filename: Optional (kept for compatibility, not used)
             
         Returns:
-            Path to the saved output file
+            String "DB" indicating data was saved to database
         """
         merged_data = self.merge(date_str)
         
-        # Determine output filename
-        if output_filename:
-            output_path = self.data_dir / output_filename
-        else:
-            output_path = self.data_dir / f'merged_{date_str}.json'
-        
-        # Save merged data
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(merged_data, f, indent=2, ensure_ascii=False)
-        
-        # Also save to database
+        # Save to database
         try:
             from datetime import datetime
             from betting_engine.importers import import_merged_matches
@@ -167,6 +174,7 @@ class MergeYesterdayResults:
             print(f"Database: Created {db_result['created']}, Updated {db_result['updated']}")
         except Exception as e:
             print(f"⚠ Database save failed: {str(e)}")
+            raise
         
-        return output_path
+        return "DB"
 

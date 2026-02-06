@@ -181,52 +181,52 @@ class BetwayForebetMatcher:
     def match_and_save(self, date_str: str, threshold: int = 75, 
                       output_filename: Optional[str] = None) -> str:
         """
-        Load both JSON files, match them, and save combined data
+        Load Betway and Forebet data from database, match them, and save combined data to database
         
         Args:
             date_str: Date string in format 'YYYY-MM-DD'
             threshold: Minimum similarity score to consider a match
-            output_filename: Optional custom output filename. If None, uses 'combined_YYYY-MM-DD.json'
+            output_filename: Optional (kept for compatibility, not used)
             
         Returns:
-            Path to saved file
+            String "DB" indicating data was saved to database
         """
-        # Load Betway data
-        betway_file = os.path.join(self.data_dir, f"{date_str}.json")
-        if not os.path.exists(betway_file):
-            raise FileNotFoundError(f"Betway file not found: {betway_file}")
+        # Load Betway data from database
+        from datetime import datetime
+        from betting_engine.models import BetwayOdds, ForebetTip
         
-        with open(betway_file, 'r', encoding='utf-8') as f:
-            betway_data = json.load(f)
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+        betway_odds = BetwayOdds.objects.using('default').filter(date=date_obj).first()
         
-        # Load Forebet data
-        forebet_file = os.path.join(self.data_dir, f"forebet_tips_{date_str}.json")
-        if not os.path.exists(forebet_file):
-            raise FileNotFoundError(f"Forebet file not found: {forebet_file}")
+        if not betway_odds:
+            raise FileNotFoundError(f"No Betway odds found for {date_str}. Run scrape_betway first.")
         
-        with open(forebet_file, 'r', encoding='utf-8') as f:
-            forebet_data = json.load(f)
+        betway_data = betway_odds.matches
+        if not isinstance(betway_data, list):
+            raise ValueError(f"Betway odds matches field is not a list for {date_str}")
+        
+        # Load Forebet data from database
+        forebet_tip = ForebetTip.objects.using('default').filter(date=date_obj).first()
+        
+        if not forebet_tip:
+            raise FileNotFoundError(f"No Forebet tips found for {date_str}. Run scrape_forebet first.")
+        
+        # Get tips from JSONField
+        forebet_data = forebet_tip.tips
+        if not isinstance(forebet_data, list):
+            raise ValueError(f"ForebetTip tips field is not a list for {date_str}")
         
         # Combine data
         combined_data = self.combine_data(betway_data, forebet_data, threshold)
         
-        # Save combined data
-        if output_filename is None:
-            output_filename = f"combined_{date_str}.json"
-        
-        output_path = os.path.join(self.data_dir, output_filename)
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(combined_data, f, indent=2, ensure_ascii=False)
-        
-        # Also save to database
+        # Save to database
         try:
-            from datetime import datetime
             from betting_engine.importers import import_combined_matches
-            date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
             db_result = import_combined_matches(date_obj, combined_data)
             print(f"Database: Created {db_result['created']}, Updated {db_result['updated']}")
         except Exception as e:
             print(f"⚠ Database save failed: {str(e)}")
+            raise
         
-        return output_path
+        return "DB"
 
