@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hungwetips_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          docker build -t hungwetips-backend:ci .
+
+      - name: Run Django checks
+        run: |
+          docker run --rm \
+            --add-host=host.docker.internal:host-gateway \
+            -e DJANGO_SETTINGS_MODULE=hungwetips.settings.dev \
+            -e POSTGRES_HOST=host.docker.internal \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_DB=hungwetips_test \
+            -e DJANGO_SECRET_KEY=ci-test-secret-key \
+            hungwetips-backend:ci \
+            python manage.py check
+
+      - name: Run migrations check
+        run: |
+          docker run --rm \
+            --add-host=host.docker.internal:host-gateway \
+            -e DJANGO_SETTINGS_MODULE=hungwetips.settings.dev \
+            -e POSTGRES_HOST=host.docker.internal \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_DB=hungwetips_test \
+            -e DJANGO_SECRET_KEY=ci-test-secret-key \
+            hungwetips-backend:ci \
+            python manage.py makemigrations --check --dry-run
+
+      - name: Run Django tests
+        run: |
+          docker run --rm \
+            --add-host=host.docker.internal:host-gateway \
+            -e DJANGO_SETTINGS_MODULE=hungwetips.settings.dev \
+            -e POSTGRES_HOST=host.docker.internal \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_DB=hungwetips_test \
+            -e DJANGO_SECRET_KEY=ci-test-secret-key \
+            hungwetips-backend:ci \
+            python manage.py test
