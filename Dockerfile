@@ -32,9 +32,8 @@ COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
-# Install Playwright system deps + Chromium; cache browser binaries so rebuilds reuse them
-RUN --mount=type=cache,target=/root/.cache/ms-playwright \
-    playwright install-deps && playwright install chromium
+# Install Playwright system deps + Chromium (no cache mount so browsers are in the image)
+RUN playwright install-deps && playwright install chromium
 
 # Copy the app source
 COPY . .
