@@ -3,9 +3,11 @@ echo "Starting application..."
 
 python manage.py migrate --noinput
 
+# Always collect static (works with settings.dev); web + nginx share the same volume
+echo "Collecting static files..."
+python manage.py collectstatic --noinput
+
 if [ "$DJANGO_ENV" = "production" ]; then
-    echo "Collecting static files..."
-    python manage.py collectstatic --noinput
     echo "Running Gunicorn..."
     exec gunicorn hungwetips.wsgi:application --bind 0.0.0.0:8000 --workers 3
 else

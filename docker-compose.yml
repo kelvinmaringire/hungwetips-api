@@ -4,6 +4,9 @@ services:
     container_name: hungwetips_web
     image: 7612/hungwetips-backend:0.1.0
     env_file: .env
+    volumes:
+      - hungwetips_static:/app/static   # collectstatic writes here; nginx serves from same volume
+      - hungwetips_media:/app/media     # uploaded media; nginx serves from same volume
     ports:
       - "8004:8000"   # Map container port 8004 to host port 8000
     labels:
