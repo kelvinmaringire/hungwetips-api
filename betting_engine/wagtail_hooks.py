@@ -7,7 +7,8 @@ from wagtail_modeladmin.options import (
 )
 from .models import (
     BetwayOdds, ForebetTip, ForebetResult,
-    CombinedMatch, MarketSelection, SingleBetSnapshot, MergedMatch
+    CombinedMatch, MarketSelection, SingleBetSnapshot, MergedMatch,
+    MarketSelectorMLRun,
 )
 
 
@@ -163,6 +164,19 @@ class MergedMatchAdmin(ModelAdmin):
     ordering = ('-date',)
 
 
+class MarketSelectorMLRunAdmin(ModelAdmin):
+    model = MarketSelectorMLRun
+    menu_label = "Market Selector ML Runs"
+    menu_icon = "fa-line-chart"
+    add_to_settings_menu = False
+    exclude_from_explorer = False
+
+    list_display = ('date', 'created_at', 'updated_at')
+    list_filter = ('date',)
+    search_fields = ('date',)
+    ordering = ('-date',)
+
+
 # Group all betting models under a single "Betting Engine" menu section
 class BettingEngineAdminGroup(ModelAdminGroup):
     menu_label = "Betting Engine"
@@ -176,6 +190,7 @@ class BettingEngineAdminGroup(ModelAdminGroup):
         MarketSelectionAdmin,
         SingleBetSnapshotAdmin,
         MergedMatchAdmin,
+        MarketSelectorMLRunAdmin,
     )
 
 

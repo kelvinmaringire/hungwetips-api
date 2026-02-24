@@ -2,7 +2,8 @@ from django.contrib import admin
 
 from .models import (
     BetwayOdds, ForebetTip, ForebetResult,
-    CombinedMatch, MarketSelection, SingleBetSnapshot, MergedMatch
+    CombinedMatch, MarketSelection, SingleBetSnapshot, MergedMatch,
+    MarketSelectorMLRun,
 )
 
 
@@ -139,6 +140,16 @@ class MergedMatchAdmin(admin.ModelAdmin):
     search_fields = ('date',)
     date_hierarchy = 'date'
     readonly_fields = ('created_at', 'updated_at', 'row_count')
+
+
+@admin.register(MarketSelectorMLRun)
+class MarketSelectorMLRunAdmin(admin.ModelAdmin):
+    list_display = ('date', 'created_at', 'updated_at')
+    list_filter = ('date',)
+    search_fields = ('date',)
+    date_hierarchy = 'date'
+    readonly_fields = ('created_at', 'updated_at')
+
 
 # Note: Wagtail ModelAdmin is configured in wagtail_hooks.py
 # This groups all models under a single "Betting Engine" menu section in Wagtail admin

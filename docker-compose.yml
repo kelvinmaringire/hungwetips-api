@@ -66,11 +66,28 @@ services:
       - hungwetips_net   
       - traefik_net
 
+  jupyter:
+    image: jupyter/base-notebook:latest
+    container_name: hungwetips_jupyter
+    ports:
+      - "8888:8888"
+    networks:
+      - hungwetips_net
+    environment:
+      JUPYTER_ENABLE_LAB: "yes"
+      JUPYTER_PASSWORD: talibk700
+    volumes:
+      - hungwetips_notebooks:/home/jovyan/work  
+    command: >
+      start-notebook.sh
+      --NotebookApp.token=''  
+
 # Define named volumes
 volumes:
   hungwetips_db:    # Stores PostgreSQL data persistently
   hungwetips_static:  # Stores static files persistently
   hungwetips_media:   # Stores uploaded media persistently
+  hungwetips_notebooks:  # Jupyter notebook workspace
 
 networks:
   hungwetips_net: 

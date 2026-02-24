@@ -3,89 +3,29 @@ from django.conf import settings
 from datetime import datetime, timedelta, timezone
 import time
 import json
+
+from betting_engine.services.scraper_utils import random_sleep, get_user_agent
 import os
 from concurrent.futures import ThreadPoolExecutor
 
-leagues = {
-  "England": [
-    "england_premier-league",
-    "england_efl-cup",
-    "england_championship",
-    "england_efl-trophy",
-    "england_league-one",
-    "england_fa-cup",
-    "england_national-league",
-    "england_league-two"
-  ],
-  "Spain": [
-    "spain_la-liga",
-    "spain_copa-del-rey",
-    "spain_laliga-2",
-    "spain_supercopa",
-    "spain_primera-federacion",
-    "spain_primera-federacion-women"
-  ],
-  "Germany": [
-    "germany_bundesliga",
-    "germany_2-bundesliga",
-    "germany_dfb-pokal",
-    "germany_3-liga"
-  ],
-  "International_Clubs": [
-    "international-clubs_uefa-champions-league",
-    "international-clubs_uefa-europa-league",
-    "international-clubs_caf-champions-league",
-    "international-clubs_uefa-conference-league",
-    "international-clubs_uefa-champions-league-women",
-    "international-clubs_afc-champions-league-two",
-    "international-clubs_caf-confederations-cup",
-    "international-clubs_conmebol-sudamericana",
-    "international-clubs_conmebol-libertadores",
-    "international-clubs_concacaf-champions-cup",
-    "international-clubs_afc-challenge-league"
-  ],
-  "Internationals": [
-    "international_fifa-world-cup",
-    "international_africa-cup-of-nations"
-  ],
-  "Italy": [
-    "italy_serie-a",
-    "italy_coppa-italia",
-    "italy_serie-b",
-    "italy_serie-a-women",
-    "italy_coppa-italia-women",
-    "italy_coppa-italia-serie-c",
-    "italy_primavera-1"
-  ],
-  "France": [
-    "france_ligue-1",
-    "france_coupe-de-france",
-    "france_ligue-2",
-    "france_national",
-    "france_premiere-ligue-women"
-  ],
-  "South_Africa": [
-    "south-africa_premiership",
-    "south-africa_championship"
-  ],
-  "Portugal": [
-    "portugal_liga-portugal",
-    "portugal_taca-de-portugal",
-    "portugal_liga-portugal-2",
-    "portugal_liga-portugal-3",
-    "portugal_campeonato-de-portugal",
-    "portugal_u23-liga-revelacao"
-  ],
-  "Netherlands": [
-    "netherlands_eredivisie",
-    "netherlands_knvb-beker",
-    "netherlands_eerste-divisie",
-    "netherlands_derde-divisie",
-    "netherlands_eredivisie-women",
-    "netherlands_knvb-beker-women"
-  ]
-}
 
+def _load_leagues():
+    """Load leagues from leagues.json. Returns {country: [betway_slugs]} for compatibility."""
+    leagues_file = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        "betting_data",
+        "leagues.json"
+    )
+    try:
+        with open(leagues_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return {
+            country: [item["betway"] for item in leagues]
+            for country, leagues in data.items()
+        }
+    except Exception as e:
+        print(f"Error loading leagues: {e}")
+        return {}
 
 
 class BetwayScraper:
@@ -105,11 +45,11 @@ class BetwayScraper:
         """Navigate to individual game page and extract detailed odds"""
         try:
             page.goto(game_url, timeout=60000, wait_until="domcontentloaded")
-            time.sleep(2)
+            random_sleep("nav")
             
             # Wait for markets container
             page.wait_for_selector("div.flex.flex-col.gap-3", timeout=10000)
-            time.sleep(1)
+            random_sleep("medium")
             
             # Initialize all new fields
             game_data['home_win'] = None
@@ -325,7 +265,7 @@ class BetwayScraper:
                     search_button = page.locator("div.flex.gap-2.sticky div.flex.items-center.justify-center.rounded-lg.cursor-pointer.bg-dark-800.w-9.h-9").first
                     if search_button.count() > 0:
                         search_button.click()
-                        time.sleep(0.5)
+                        random_sleep("short")
                         
                         # Find and fill search input (it appears after clicking)
                         search_input = page.locator("input.w-full.px-2.pr-8.text-xs.border.rounded-lg").first
@@ -335,12 +275,12 @@ class BetwayScraper:
                         
                         if search_input.count() > 0:
                             search_input.fill(home_team)
-                            time.sleep(1.5)
+                            random_sleep("medium")
                             
                             # Wait for filtered market to appear
                             try:
                                 # Look for market with team name in summary
-                                time.sleep(1)
+                                random_sleep("short")
                                 
                                 # Find all markets and check for team-specific Total market
                                 all_markets = page.locator("details").all()
@@ -367,9 +307,9 @@ class BetwayScraper:
                             # Always try to clear search and close, even if we found the market or not
                             try:
                                 search_input.fill("")
-                                time.sleep(0.5)
+                                random_sleep("short")
                                 search_button.click()
-                                time.sleep(0.5)
+                                random_sleep("short")
                             except:
                                 pass
                 except Exception as e:
@@ -381,7 +321,7 @@ class BetwayScraper:
                     search_button = page.locator("div.flex.gap-2.sticky div.flex.items-center.justify-center.rounded-lg.cursor-pointer.bg-dark-800.w-9.h-9").first
                     if search_button.count() > 0:
                         search_button.click()
-                        time.sleep(0.5)
+                        random_sleep("short")
                         
                         # Find and fill search input (it appears after clicking)
                         search_input = page.locator("input.w-full.px-2.pr-8.text-xs.border.rounded-lg").first
@@ -391,12 +331,12 @@ class BetwayScraper:
                         
                         if search_input.count() > 0:
                             search_input.fill(away_team)
-                            time.sleep(1.5)
+                            random_sleep("medium")
                             
                             # Wait for filtered market to appear
                             try:
                                 # Look for market with team name in summary
-                                time.sleep(1)
+                                random_sleep("short")
                                 
                                 # Find all markets and check for team-specific Total market
                                 all_markets = page.locator("details").all()
@@ -423,9 +363,9 @@ class BetwayScraper:
                             # Always try to clear search and close, even if we found the market or not
                             try:
                                 search_input.fill("")
-                                time.sleep(0.5)
+                                random_sleep("short")
                                 search_button.click()
-                                time.sleep(0.5)
+                                random_sleep("short")
                             except:
                                 pass
                 except Exception as e:
@@ -445,11 +385,7 @@ class BetwayScraper:
         return game_data
 
     def run(self):
-        user_agent = getattr(
-            settings,
-            "PLAYWRIGHT_USER_AGENT",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36"
-        )
+        user_agent = get_user_agent()
 
         # Unix Timestamp for tomorrow
         # South Africa Standard Time (UTC+2)
@@ -473,6 +409,7 @@ class BetwayScraper:
         print("End Unix timestamp:", end_unix)
 
         # Flatten all leagues from the dictionary
+        leagues = _load_leagues()
         all_leagues = []
         for country_leagues in leagues.values():
             all_leagues.extend(country_leagues)
@@ -482,7 +419,11 @@ class BetwayScraper:
 
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=self.headless)
-            context = browser.new_context(user_agent=user_agent)
+            context = browser.new_context(
+                user_agent=user_agent,
+                viewport={"width": 1920, "height": 1080},
+                locale="en-ZA",
+            )
             page = context.new_page()
 
             # Iterate over each league to scrape game data
@@ -497,12 +438,11 @@ class BetwayScraper:
                 print(f"\nProcessing league: {league}")
                 print(f"URL: {highlights_url}")
                 
-                # Navigate to highlights URL
-                page.goto(highlights_url, timeout=60000, wait_until="domcontentloaded")
-                
                 try:
+                    # Navigate to highlights URL (inside try so timeout skips league, doesn't fail whole run)
+                    page.goto(highlights_url, timeout=60000, wait_until="domcontentloaded")
                     page.wait_for_selector("#sportsbook-container", timeout=15000)
-                    time.sleep(2)
+                    random_sleep("between_leagues")
                     
                     # Extract game hrefs for reference
                     game_links = page.locator("#sportsbook-container a[href*='/event/soccer']").all()
@@ -616,7 +556,11 @@ class BetwayScraper:
                             continue
                             
                 except Exception as e:
-                    print(f"  ✗ Error processing league {league}: {str(e)}")
+                    err_msg = str(e)
+                    if "Timeout" in err_msg or "timeout" in err_msg:
+                        print(f"  ⚠ Timeout loading {league}, skipping (continuing with other leagues)...")
+                    else:
+                        print(f"  ✗ Error processing league {league}: {err_msg}")
                     continue
             
             # Now navigate to each game page to get detailed odds
@@ -628,13 +572,14 @@ class BetwayScraper:
                     print(f"\n[{i}/{len(all_games_data)}] Scraping: {game_data['home_team']} vs {game_data['away_team']}")
                     try:
                         self.scrape_game_details(page, game_data['game_url'], game_data)
+                        random_sleep("between_games")
                     except Exception as e:
                         print(f"    ⚠ Error scraping details (game will still be saved): {str(e)}")
                         # Game data is already in the list, so it will be saved even if details scraping fails
                 else:
                     print(f"\n[{i}/{len(all_games_data)}] Skipping: No game URL available")
             
-            # Save to both default DB and analytics DB (run in thread to avoid async context)
+            # Save to database (run in thread to avoid async context)
             if all_games_data:
                 def _save_betway_to_db():
                     from betting_engine.importers import import_betway_odds
@@ -644,27 +589,9 @@ class BetwayScraper:
                     with ThreadPoolExecutor(max_workers=1) as executor:
                         future = executor.submit(_save_betway_to_db)
                         db_result = future.result()
-                    print(f"\nDatabase (default + analytics): Created {db_result['created']}, Updated {db_result['updated']}")
+                    print(f"\nDatabase: Created {db_result['created']}, Updated {db_result['updated']}")
                 except Exception as e:
                     print(f"\n⚠ Database save failed: {e}")
-                    # Fallback: try each DB separately in a thread
-                    def _save_using(using):
-                        from betting_engine.importers import import_betway_odds
-                        return import_betway_odds(tomorrow_sast.date(), all_games_data, using=using)
-
-                    with ThreadPoolExecutor(max_workers=2) as executor:
-                        f_default = executor.submit(_save_using, 'default')
-                        f_analytics = executor.submit(_save_using, 'analytics')
-                        try:
-                            r1 = f_default.result()
-                            print(f"  Default DB: Created {r1['created']}, Updated {r1['updated']}")
-                        except Exception as e1:
-                            print(f"  Default DB failed: {e1}")
-                        try:
-                            r2 = f_analytics.result()
-                            print(f"  Analytics DB: Created {r2['created']}, Updated {r2['updated']}")
-                        except Exception as e2:
-                            print(f"  Analytics DB failed: {e2}")
             
             print(f"\n\n=== SUMMARY ===")
             print(f"Total game links found: {len(all_game_hrefs)}")

@@ -25,6 +25,12 @@ from .views import (
     # MergedMatch views
     MergedMatchListView,
     MergedMatchDetailView,
+    # BetSettlementSnapshot views
+    BetSettlementSnapshotListView,
+    BetSettlementSnapshotDetailView,
+    # MarketSelectorMLRun views
+    MarketSelectorMLRunListView,
+    MarketSelectorMLRunDetailView,
     # Import views
     BetwayOddsImportView,
     ForebetTipsImportView,
@@ -66,6 +72,14 @@ urlpatterns = [
     path('merged-matches/', MergedMatchListView.as_view(), name='merged_match_list'),
     path('merged-matches/<int:pk>/', MergedMatchDetailView.as_view(), name='merged_match_detail'),
     
+    # BetSettlementSnapshot endpoints
+    path('bet-settlements/', BetSettlementSnapshotListView.as_view(), name='bet_settlement_list'),
+    path('bet-settlements/<int:pk>/', BetSettlementSnapshotDetailView.as_view(), name='bet_settlement_detail'),
+
+    # MarketSelectorMLRun endpoints
+    path('market-selector-ml-runs/', MarketSelectorMLRunListView.as_view(), name='market_selector_ml_run_list'),
+    path('market-selector-ml-runs/<int:pk>/', MarketSelectorMLRunDetailView.as_view(), name='market_selector_ml_run_detail'),
+
     # Import endpoints
     path('import/betway-odds/', BetwayOddsImportView.as_view(), name='import_betway_odds'),
     path('import/forebet-tips/', ForebetTipsImportView.as_view(), name='import_forebet_tips'),

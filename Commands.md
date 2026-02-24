@@ -204,6 +204,9 @@ docker compose exec -T db pg_dump -U postgres -d hungwetips_db -F c > ./data_bac
 docker compose exec -T db psql -U postgres -c "DROP DATABASE hungwetips_db;"
 docker compose exec -T db psql -U postgres -c "CREATE DATABASE hungwetips_db;"
 docker compose exec -T db pg_restore -U postgres -d hungwetips_db < data_backup.dump
+
+# Run workflow
+docker exec hungwetips_web python manage.py run_workflow 
 ```
 
 </details>

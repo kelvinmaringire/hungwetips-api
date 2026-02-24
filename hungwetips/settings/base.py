@@ -167,13 +167,9 @@ DATABASES = {
         "NAME": os.getenv("POSTGRES_DB"),
         "USER": os.getenv("POSTGRES_USER"),
         "PASSWORD": os.getenv("POSTGRES_PASSWORD"),
-        "HOST": os.getenv("POSTGRES_HOST", "db"),  # 👈 use POSTGRES_HOST
-        "PORT": os.getenv("POSTGRES_PORT", 5432),  # 👈 use POSTGRES_PORT
+        "HOST": os.getenv("POSTGRES_HOST", "db"),
+        "PORT": os.getenv("POSTGRES_PORT", 5432),
     },
-    "analytics": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "hungwetips_analysis.db",
-    }
 }
 
 

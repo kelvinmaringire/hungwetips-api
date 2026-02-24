@@ -10,10 +10,16 @@ class Command(BaseCommand):
             type=str,
             help='Date string in YYYY-MM-DD format (default: today)',
         )
+        parser.add_argument(
+            '--no-headless',
+            action='store_true',
+            help='Show the browser window (headed mode)',
+        )
 
     def handle(self, *args, **options):
         date_str = options.get('date')
-        scraper = BetwayAutomation()
+        headless = not options.get('no_headless', False)
+        scraper = BetwayAutomation(headless=headless)
         result = scraper.run(date_str=date_str)
 
         if result:

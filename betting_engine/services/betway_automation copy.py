@@ -2,8 +2,11 @@ from playwright.sync_api import sync_playwright
 from django.conf import settings
 from datetime import datetime, timedelta, timezone
 import time
+
+from betting_engine.services.scraper_utils import random_sleep, get_user_agent
 import json
 import os
+import re
 import uuid
 import sys
 
@@ -46,10 +49,9 @@ class BetwayAutomation:
                 home_team = game.get('home_team', 'Unknown')
                 away_team = game.get('away_team', 'Unknown')
                 
-                # Check ML values for double chance (home_draw only)
+                # Check ML values for double chance (home_draw only - away_draw removed)
                 ml_home_dnb_value = game.get('ml_home_dnb_value', 0)
                 ml_home_dnb_prob = game.get('ml_home_dnb_prob', 0)
-                
                 home_draw_odds = self.convert_to_float(game.get('home_draw_odds'))
                 
                 print(f"  Checking: {home_team} vs {away_team}")
@@ -99,10 +101,9 @@ class BetwayAutomation:
                 home_team = game.get('home_team', 'Unknown')
                 away_team = game.get('away_team', 'Unknown')
                 
-                # Check ML values for team over 0.5 (home_over_05 only)
+                # Check ML values for team over 0.5 (home only - away_over_05 removed)
                 ml_home_over_05_value = game.get('ml_home_over_05_value', 0)
                 ml_home_over_05_prob = game.get('ml_home_over_05_prob', 0)
-                
                 home_team_over_05 = self.convert_to_float(game.get('home_team_over_0.5'))
                 
                 print(f"  Checking: {home_team} vs {away_team}")
@@ -142,8 +143,8 @@ class BetwayAutomation:
         """
         Check if selections contain conflicting bets from the same match.
         Conflicts occur when same match has home and away direction bets.
-        (Only home_draw, home_over_05, over_1_5 are used now - no away bets.)
-
+        (away_over_05 and away_draw removed - not profitable)
+        
         Returns: (has_conflict: bool, conflict_details: str)
         """
         # Group selections by match_id
@@ -247,11 +248,11 @@ class BetwayAutomation:
         try:
             print(f"    Navigating to: {game_url}")
             page.goto(game_url, timeout=60000, wait_until="domcontentloaded")
-            time.sleep(2)
+            random_sleep("nav")
             
             # Wait for markets to load
             page.wait_for_selector("div.flex.flex-col.gap-3", timeout=10000)
-            time.sleep(1)
+            random_sleep("medium")
             
             # Find all market sections
             market_sections = page.locator("details").all()
@@ -285,35 +286,27 @@ class BetwayAutomation:
                                         item_text = label_div.inner_text().strip()
                                         item_text_lower = item_text.lower()
                                         
-                                        # Check if this is the bet we want based on text content
+                                        # Check if this is the bet we want (home_draw only)
                                         is_match = False
+                                        if home_team and "draw" in item_text_lower:
+                                            has_home = home_team in item_text_lower
+                                            has_away = away_team and away_team in item_text_lower
+                                            has_draw = "draw" in item_text_lower
+                                            is_match = has_home and has_draw and not has_away
+                                        if not is_match:
+                                            is_match = (
+                                                ("1x" in item_text_lower)
+                                                or ("home/draw" in item_text_lower)
+                                            )
                                         
-                                        if bet_type == 'home_draw':
-                                            # Match: "Home Team Or Draw" or "Home Team or Draw" or "1X"
-                                            # The text format is typically: "West Bromwich Albion Or Draw"
-                                            # Must have home_team and "draw", but NOT away_team (to exclude home_away)
-                                            is_match = False
-                                            if home_team and "draw" in item_text_lower:
-                                                has_home = home_team in item_text_lower
-                                                has_away = away_team and away_team in item_text_lower
-                                                has_draw = "draw" in item_text_lower
-                                                # home_draw: has home + draw, but NOT away
-                                                is_match = has_home and has_draw and not has_away
-                                            
-                                            # Also check for shorthand notation
-                                            if not is_match:
-                                                is_match = (
-                                                    ("1x" in item_text_lower)
-                                                    or ("home/draw" in item_text_lower)
-                                                )
                                         if is_match:
                                             print(f"    ✓ Found {bet_type} option: {item_text}")
                                             bet_button = item
                                             bet_button.scroll_into_view_if_needed()
-                                            time.sleep(0.5)
+                                            random_sleep("short")
                                             bet_button.click()
                                             print(f"    ✓ Bet clicked: {bet_type}")
-                                            time.sleep(1.5)
+                                            random_sleep("medium")
                                             bet_clicked = True
                                             break
                                 except Exception as e:
@@ -339,11 +332,10 @@ class BetwayAutomation:
             return False
 
     def place_team_over_05_bet(self, page, selection):
-        """Place a single team over 0.5 bet"""
+        """Place a single team over 0.5 bet (home_over_05 only)"""
         game_url = selection.get('game_url')
-        bet_type = selection.get('bet_type')
         game = selection.get('game')
-        team_name = game.get('home_team') if bet_type == 'home_over_05' else game.get('away_team')
+        team_name = game.get('home_team')
         
         if not game_url:
             print(f"    ✗ No game URL for {selection.get('team')}")
@@ -352,11 +344,11 @@ class BetwayAutomation:
         try:
             print(f"    Navigating to: {game_url}")
             page.goto(game_url, timeout=60000, wait_until="domcontentloaded")
-            time.sleep(2)
+            random_sleep("nav")
             
             # Wait for markets to load
             page.wait_for_selector("div.flex.flex-col.gap-3", timeout=10000)
-            time.sleep(1)
+            random_sleep("medium")
             
             bet_clicked = False
             
@@ -381,10 +373,10 @@ class BetwayAutomation:
                                             print(f"    ✓ Found Over (0.5) option")
                                             bet_button = item
                                             bet_button.scroll_into_view_if_needed()
-                                            time.sleep(0.5)
+                                            random_sleep("short")
                                             bet_button.click()
                                             print(f"    ✓ Bet clicked: {team_name} Over 0.5")
-                                            time.sleep(1.5)
+                                            random_sleep("medium")
                                             bet_clicked = True
                                             break
                             if bet_clicked:
@@ -401,7 +393,7 @@ class BetwayAutomation:
                     search_button = page.locator("div.flex.gap-2.sticky div.flex.items-center.justify-center.rounded-lg.cursor-pointer.bg-dark-800.w-9.h-9").first
                     if search_button.count() > 0:
                         search_button.click()
-                        time.sleep(0.5)
+                        random_sleep("short")
                         
                         # Find and fill search input
                         search_input = page.locator("input.w-full.px-2.pr-8.text-xs.border.rounded-lg").first
@@ -410,10 +402,10 @@ class BetwayAutomation:
                         
                         if search_input.count() > 0:
                             search_input.fill(team_name)
-                            time.sleep(1.5)
+                            random_sleep("medium")
                             
                             # Wait for filtered market to appear
-                            time.sleep(1)
+                            random_sleep("medium")
                             
                             # Find all markets and check for team-specific Total market
                             all_markets = page.locator("details").all()
@@ -430,10 +422,10 @@ class BetwayAutomation:
                                                 if "Over" in item_text and "(0.5)" in item_text:
                                                     bet_button = item
                                                     bet_button.scroll_into_view_if_needed()
-                                                    time.sleep(0.5)
+                                                    random_sleep("short")
                                                     bet_button.click()
                                                     print(f"    ✓ Bet clicked: {team_name} Over 0.5")
-                                                    time.sleep(1.5)
+                                                    random_sleep("medium")
                                                     bet_clicked = True
                                                     break
                                     if bet_clicked:
@@ -442,9 +434,9 @@ class BetwayAutomation:
                             # Clear search
                             try:
                                 search_input.fill("")
-                                time.sleep(0.5)
+                                random_sleep("short")
                                 search_button.click()
-                                time.sleep(0.5)
+                                random_sleep("short")
                             except:
                                 pass
                 except Exception as e:
@@ -474,11 +466,11 @@ class BetwayAutomation:
         try:
             print(f"    Navigating to: {game_url}")
             page.goto(game_url, timeout=60000, wait_until="domcontentloaded")
-            time.sleep(2)
+            random_sleep("nav")
             
             # Wait for markets to load
             page.wait_for_selector("div.flex.flex-col.gap-3", timeout=10000)
-            time.sleep(1)
+            random_sleep("medium")
             
             bet_clicked = False
             
@@ -517,10 +509,10 @@ class BetwayAutomation:
                                             print(f"    ✓ Found Over (1.5) option: {item_text}")
                                             bet_button = item
                                             bet_button.scroll_into_view_if_needed()
-                                            time.sleep(0.5)
+                                            random_sleep("short")
                                             bet_button.click()
                                             print(f"    ✓ Bet clicked: Over 1.5 Goals")
-                                            time.sleep(1.5)
+                                            random_sleep("medium")
                                             bet_clicked = True
                                             break
                                 except Exception as e:
@@ -556,7 +548,7 @@ class BetwayAutomation:
                 game_url = match.get('game_url')
                 match_id = match.get('forebet_match_id') or match.get('game_url') or f"{home_team}|{away_team}"
                 
-                # Extract bets based on boolean flags (home_over_05, home_draw, over_1_5 only)
+                # Extract bets based on boolean flags
                 if match.get('home_over_bet', False):
                     odds = self.convert_to_float(match.get('home_team_over_0.5'))
                     if odds:
@@ -624,12 +616,13 @@ class BetwayAutomation:
             return False
         
         if success:
-            # Immediately click Bet Now to confirm the single bet
             print(f"    ✓ Bet added to betslip, confirming...")
-            bet_placed = self.click_bet_now(page)
+            bet_placed, booking_code = self.click_bet_now(page)
             if bet_placed:
                 bet_selection['status'] = 'placed'
                 bet_selection['placed_at'] = datetime.now(timezone.utc).isoformat()
+                if booking_code:
+                    bet_selection['booking_code'] = booking_code
                 print(f"    ✓ Single bet placed successfully")
                 return True
             else:
@@ -643,20 +636,82 @@ class BetwayAutomation:
             print(f"    ✗ Failed to add bet to betslip")
             return False
 
+    def extract_booking_code_from_modal(self, page):
+        """
+        Extract booking code from the Bet Confirmation modal after successful bet placement.
+        The booking code (e.g. BW3EF8816F) appears in <strong class="cursor-pointer"> inside Share your bet section.
+        """
+        try:
+            # Wait for success state - "Successful Bets" indicates the confirmation modal has updated
+            page.wait_for_selector('span:has-text("Successful Bets"), div:has-text("Successful Bets")', timeout=8000)
+            random_sleep("nav")  # Allow booking code to render (may load after success message)
+
+            # Try 1: strong.cursor-pointer - booking code has this exact class in Share your bet
+            strong_cursor = page.locator('strong.cursor-pointer')
+            if strong_cursor.count() > 0:
+                for i in range(min(5, strong_cursor.count())):
+                    try:
+                        text = strong_cursor.nth(i).inner_text().strip()
+                        if re.match(r'^BW[A-Z0-9]{8,}$', text):
+                            return text
+                    except Exception:
+                        continue
+
+            # Try 2: strong inside section containing "Booking Code:"
+            booking_section = page.locator('div:has-text("Booking Code") strong')
+            if booking_section.count() > 0:
+                for i in range(min(5, booking_section.count())):
+                    try:
+                        text = booking_section.nth(i).inner_text().strip()
+                        if re.match(r'^BW[A-Z0-9]{8,}$', text):
+                            return text
+                    except Exception:
+                        continue
+
+            # Try 3: Fallback - any strong matching BW + alphanumeric pattern
+            strongs = page.locator('strong').all()
+            for strong in strongs[:20]:
+                try:
+                    text = strong.inner_text().strip()
+                    if re.match(r'^BW[A-Z0-9]{8,}$', text):
+                        return text
+                except Exception:
+                    continue
+        except Exception as e:
+            print(f"  ⚠ Could not extract booking code: {str(e)}")
+        return None
+
+    def close_bet_confirmation_modal(self, page):
+        """Close the Bet Confirmation modal via Continue betting or close button."""
+        try:
+            continue_btn = page.locator('#strike-conf-continue-btn, button:has-text("Continue betting")')
+            if continue_btn.count() > 0 and continue_btn.first.is_visible():
+                continue_btn.first.click()
+                random_sleep("short")
+                return True
+            close_btn = page.locator('#modal-close-btn')
+            if close_btn.count() > 0 and close_btn.first.is_visible():
+                close_btn.first.click()
+                random_sleep("short")
+                return True
+        except Exception:
+            pass
+        return False
+
     def click_bet_now(self, page):
-        """Click the Bet Now button to place the betslip"""
+        """Click the Bet Now button to place the betslip. Returns (success, booking_code)."""
         print(f"\n=== CLICKING BET NOW ===")
         try:
             print("Step 1: Navigating back to main page...")
             page.goto("https://betway.co.za/sport/soccer", timeout=60000, wait_until="domcontentloaded")
             print("  ✓ Navigation completed")
-            time.sleep(2)
+            random_sleep("nav")
             
             print("Step 2: Waiting for betslip to update...")
-            time.sleep(2)
+            random_sleep("nav")
             
             print("Step 3: Looking for Bet Now button...")
-            time.sleep(1)
+            random_sleep("short")
             
             # Try to wait for the button to appear
             try:
@@ -715,12 +770,12 @@ class BetwayAutomation:
                         btn_to_click = bet_now_button
                     
                     btn_to_click.scroll_into_view_if_needed()
-                    time.sleep(0.5)
+                    random_sleep("short")
                     
                     print("  Clicking first Bet Now button (opens modal)...")
                     btn_to_click.click()
                     print("  ✓ First Bet Now button clicked")
-                    time.sleep(2)
+                    random_sleep("nav")
                     
                     # Wait for modal and click second Bet Now button
                     print("Step 4: Looking for Bet Now button inside modal...")
@@ -733,8 +788,12 @@ class BetwayAutomation:
                             print("  Clicking Bet Now button inside modal...")
                             modal_bet_now.click()
                             print("  ✓ Bet Now button in modal clicked - Bet placed!")
-                            time.sleep(3)
-                            return True
+                            random_sleep("long")  # Wait for Bet Confirmation success modal to fully render
+                            booking_code = self.extract_booking_code_from_modal(page)
+                            if booking_code:
+                                print(f"  ✓ Booking code: {booking_code}")
+                            self.close_bet_confirmation_modal(page)
+                            return True, booking_code
                         else:
                             print("  ✗ Bet Now button in modal not found")
                     except Exception as modal_error:
@@ -744,8 +803,12 @@ class BetwayAutomation:
                             if modal_bet_now.count() > 0:
                                 modal_bet_now.click()
                                 print("  ✓ Bet Now button in modal clicked via alternative selector")
-                                time.sleep(3)
-                                return True
+                                random_sleep("long")  # Wait for Bet Confirmation success modal to fully render
+                                booking_code = self.extract_booking_code_from_modal(page)
+                                if booking_code:
+                                    print(f"  ✓ Booking code: {booking_code}")
+                                self.close_bet_confirmation_modal(page)
+                                return True, booking_code
                         except Exception as e2:
                             print(f"  ✗ Error with alternative selector: {str(e2)}")
                 except Exception as click_error:
@@ -754,14 +817,14 @@ class BetwayAutomation:
                     traceback.print_exc()
             else:
                 print("  ✗ Bet Now button not found")
-            
-            return False
-            
+
+            return False, None
+
         except Exception as e:
             print(f"  ✗ Error clicking Bet Now: {str(e)}")
             import traceback
             traceback.print_exc()
-            return False
+            return False, None
 
     def save_single_bets(self, bets, date_str):
         """Save single bets information to database"""
@@ -778,6 +841,7 @@ class BetwayAutomation:
         for bet in bets:
             bet_info = {
                 'bet_id': bet.get('bet_id'),
+                'booking_code': bet.get('booking_code'),
                 'bet_type': bet.get('bet_type'),
                 'team': bet.get('team'),
                 'odds': bet.get('odds'),
@@ -815,11 +879,7 @@ class BetwayAutomation:
             tomorrow_sast = datetime.now(SAST) + timedelta(days=1)
             date_str = tomorrow_sast.strftime("%Y-%m-%d")
         
-        user_agent = getattr(
-            settings,
-            "PLAYWRIGHT_USER_AGENT",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36"
-        )
+        user_agent = get_user_agent()
         print(f"✓ User agent configured: {user_agent[:50]}...")
         print(f"✓ Date: {date_str}")
 
@@ -842,8 +902,7 @@ class BetwayAutomation:
         all_bets = self.extract_bets_from_market_selectors(market_selectors_data)
         print(f"\n✓ Extracted {len(all_bets)} bets to place")
 
-        # Apply ML filter from market_selector_ml (keep top 75%)
-        print("\n[STEP 1b] Applying market_selector_ml filter...")
+        # ML filter - keep top 75%
         from betting_engine.services.market_selector_ml import MarketSelectorML
         from betting_engine.importers import import_market_selector_ml_run
 
@@ -851,11 +910,11 @@ class BetwayAutomation:
         bets_before_count = len(all_bets)
         all_bets, rejected_bets = ml_filter.filter_bets(all_bets)
         if rejected_bets:
-            print(f"✓ After ML filter: {len(all_bets)} bets selected, {len(rejected_bets)} rejected")
+            print(f"\n✓ After ML filter: {len(all_bets)} bets selected, {len(rejected_bets)} not selected")
             for r in rejected_bets:
-                print(f"  - Rejected: {r.get('team', '?')} ({r.get('bet_type', '?')}) ml_win_prob={r.get('ml_win_prob', 0):.3f}")
+                print(f"  - Not selected: {r.get('team', '?')} ({r.get('bet_type', '?')}) ml_win_prob={r.get('ml_win_prob', 0):.3f}")
         else:
-            print(f"✓ After ML filter: {len(all_bets)} bets (top 75%)")
+            print(f"\n✓ After ML filter: {len(all_bets)} bets (top 75%)")
 
         # Save ML run for API
         def _summarize_bet(b):
@@ -878,9 +937,15 @@ class BetwayAutomation:
         print("\n[STEP 2] Launching browser...")
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=self.headless)
+args)
+            else:
+                browser = p.chromium.launch(**launch_args)
             print("✓ Browser launched")
             
-            context = browser.new_context(user_agent=user_agent)
+            context = browser.new_context(
+                user_agent=user_agent,
+                locale="en-ZA",
+            )
             print("✓ Browser context created")
             
             page = context.new_page()
@@ -899,9 +964,11 @@ class BetwayAutomation:
             page.click("#login-btn")
             print("✓ Login button clicked")
             
-            page.wait_for_selector("#login-mobile", timeout=10000)
-            page.wait_for_selector("#login-password", timeout=10000)
-            time.sleep(0.5)
+            # Allow modal to animate/open (Betway modal can be slow to render)
+            time.sleep(2)
+            page.wait_for_selector("#login-mobile", timeout=30000)
+            page.wait_for_selector("#login-password", timeout=15000)
+            random_sleep("short")
             
             page.fill("#login-mobile", "606932969")
             page.fill("#login-password", "59356723")
@@ -918,7 +985,7 @@ class BetwayAutomation:
             except Exception as e:
                 print(f"⚠ Modal didn't disappear: {str(e)}")
             
-            time.sleep(3)
+            random_sleep("nav")
             print("✓ Login completed")
 
             if not all_bets:
@@ -945,10 +1012,10 @@ class BetwayAutomation:
                     
                     if bet_idx < len(all_bets):
                         print(f"  Waiting before next bet...")
-                        time.sleep(2)
+                        random_sleep("between_bets")
 
             print("\n[STEP 6] Final delay before closing...")
-            time.sleep(10)
+            random_sleep("final")
             print("✓ Delay completed")
 
             print("\n[STEP 7] Closing browser...")

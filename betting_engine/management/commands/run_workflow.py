@@ -2,7 +2,6 @@ from django.core.management.base import BaseCommand, CommandError
 from django.core.management import call_command
 from datetime import datetime, timedelta, timezone
 import sys
-from pathlib import Path
 
 
 class Command(BaseCommand):
@@ -19,6 +18,18 @@ class Command(BaseCommand):
             '--skip-merge',
             action='store_true',
             help='Skip merging yesterday results step',
+            default=False,
+        )
+        parser.add_argument(
+            '--skip-settlement',
+            action='store_true',
+            help='Skip bet settlement step',
+            default=False,
+        )
+        parser.add_argument(
+            '--skip-ml-train',
+            action='store_true',
+            help='Skip training market selector ML models',
             default=False,
         )
         parser.add_argument(
@@ -42,7 +53,7 @@ class Command(BaseCommand):
         # Determine date
         if options['date']:
             try:
-                date_obj = datetime.strptime(options['date'], '%Y-%m-%d')
+                datetime.strptime(options['date'], '%Y-%m-%d')
                 date_str = options['date']
             except ValueError:
                 raise CommandError(f"Invalid date format: {options['date']}. Use YYYY-MM-DD format.")
@@ -60,7 +71,7 @@ class Command(BaseCommand):
             {
                 'name': 'Step 1: Scrape Forebet Tips',
                 'command': 'scrape_forebet',
-                'args': {},
+                'args': {'date': date_str},
                 'required': True,
             },
             {
@@ -83,13 +94,27 @@ class Command(BaseCommand):
                 'skip': options['skip_merge'],
             },
             {
-                'name': 'Step 5: Select Markets',
+                'name': 'Step 5: Bet Settlement',
+                'command': 'bet_settlement',
+                'args': {},
+                'required': not options['skip_settlement'],
+                'skip': options['skip_settlement'],
+            },
+            {
+                'name': 'Step 6: Select Markets',
                 'command': 'market_selector',
                 'args': {'date': date_str},
                 'required': True,
             },
             {
-                'name': 'Step 6: Automate Betting',
+                'name': 'Step 7: Train Market Selector ML',
+                'command': 'train_market_selector_ml',
+                'args': {},
+                'required': False,
+                'skip': options['skip_ml_train'],
+            },
+            {
+                'name': 'Step 8: Automate Betting',
                 'command': 'automate_betting',
                 'args': {'date': date_str},
                 'required': False,

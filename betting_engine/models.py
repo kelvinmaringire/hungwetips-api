@@ -133,3 +133,43 @@ class MergedMatch(models.Model):
     def __str__(self):
         row_count = len(self.rows) if isinstance(self.rows, list) else 0
         return f"MergedMatch({self.date}, {row_count} rows)"
+
+
+class BetSettlementSnapshot(models.Model):
+    """Settled bets - merged SingleBetSnapshot with MergedMatch to show won/lost status."""
+    date = models.DateField(unique=True, db_index=True)
+    settlements = models.JSONField(default=list)  # List of merged bet+result records
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-date']
+        indexes = [
+            models.Index(fields=['date']),
+        ]
+
+    def __str__(self):
+        count = len(self.settlements) if isinstance(self.settlements, list) else 0
+        return f"BetSettlementSnapshot({self.date}, {count} settlements)"
+
+
+class MarketSelectorMLRun(models.Model):
+    """ML filter run - selected bets, rejected bets, and metrics for a date."""
+    date = models.DateField(unique=True, db_index=True)
+    data = models.JSONField(default=dict)  # selected_bets, rejected_bets, metrics
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-date']
+        indexes = [
+            models.Index(fields=['date']),
+        ]
+
+    def __str__(self):
+        d = self.data or {}
+        sel = len(d.get('selected_bets', []))
+        rej = len(d.get('rejected_bets', []))
+        return f"MarketSelectorMLRun({self.date}, selected={sel}, rejected={rej})"

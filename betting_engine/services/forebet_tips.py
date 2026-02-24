@@ -2,20 +2,31 @@ from playwright.sync_api import sync_playwright, Page
 from bs4 import BeautifulSoup
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import List, Dict, Optional, Tuple
 import re
 import time
 
+from betting_engine.services.scraper_utils import random_sleep, get_user_agent
+
 
 class ForebetScraper:
-    def __init__(self, headless: bool = True):
+    def __init__(self, headless: bool = True, tips_date: Optional[date] = None):
+        """
+        Args:
+            headless: Run browser in headless mode
+            tips_date: Date for tips (YYYY-MM-DD). When provided (e.g. from workflow),
+                uses this instead of datetime.now()+1day to align with SAST workflow.
+                results_date is computed as tips_date - 1 day.
+        """
         self.headless = headless
+        self.tips_date = tips_date
+        self.results_date = (tips_date - timedelta(days=1)) if tips_date else None
         self.base_url = "https://www.forebet.com"
         self.leagues_file = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
             "betting_data",
-            "forebet_leagues.json"
+            "leagues.json"
         )
         
     def load_leagues(self) -> List[Dict[str, str]]:
@@ -24,10 +35,13 @@ class ForebetScraper:
             with open(self.leagues_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
-            # Extract all league paths with metadata
+            # Extract all league paths with metadata (leagues.json: {country: [{betway, forebet}, ...]})
             league_data = []
             for country, leagues in data.items():
-                for league_path in leagues:
+                for league in leagues:
+                    league_path = league.get("forebet", "")
+                    if not league_path:
+                        continue
                     # Extract league name from path (e.g., "premier-league" from "football-tips-and-predictions-for-england/premier-league")
                     league_name = league_path.split('/')[-1] if '/' in league_path else league_path
                     # Convert to readable format (e.g., "premier-league" -> "Premier League")
@@ -205,7 +219,7 @@ class ForebetScraper:
         try:
             # Navigate to preview page
             page.goto(preview_url, timeout=60000, wait_until="domcontentloaded")
-            time.sleep(2)  # Wait for content to load
+            random_sleep("nav")  # Wait for content to load
             
             # Get page HTML content
             html_content = page.content()
@@ -224,8 +238,7 @@ class ForebetScraper:
         if seen_match_ids is None:
             seen_match_ids = set()
         
-        tomorrow = datetime.now() + timedelta(days=1)
-        tomorrow_date = tomorrow.date()
+        tomorrow_date = self.tips_date or (datetime.now() + timedelta(days=1)).date()
         
         print(f"\nScraping tomorrow's tips ({tomorrow_date}) from {league_url}")
         
@@ -436,7 +449,7 @@ class ForebetScraper:
                     
                     # Small delay after scraping preview to avoid rate limiting
                     if preview_html:
-                        time.sleep(1)
+                        random_sleep("medium")
                     
                 except Exception as e:
                     print(f"  ✗ Error processing game row: {e}")
@@ -453,8 +466,7 @@ class ForebetScraper:
         if seen_match_ids is None:
             seen_match_ids = set()
         
-        yesterday = datetime.now() - timedelta(days=1)
-        yesterday_date = yesterday.date()
+        yesterday_date = self.results_date or (datetime.now() - timedelta(days=1)).date()
         
         print(f"\nScraping yesterday's results ({yesterday_date}) from {league_url}")
         
@@ -609,7 +621,9 @@ class ForebetScraper:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=self.headless)
             context = browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                user_agent=get_user_agent(),
+                viewport={"width": 1920, "height": 1080},
+                locale="en-ZA",
             )
             page = context.new_page()
             
@@ -678,11 +692,8 @@ class ForebetScraper:
                             print("  ✗ Failed to recreate page, skipping rest of leagues")
                             break
                     
-                    # Small delay between leagues
-                    try:
-                        page.wait_for_timeout(1000)
-                    except:
-                        pass
+                    # Throttle between leagues
+                    random_sleep("between_leagues")
                 
             except Exception as e:
                 print(f"Fatal error during scraping: {e}")
@@ -705,8 +716,7 @@ class ForebetScraper:
         """Save scraped data to database only"""
         # Save tips to database
         if tips:
-            tomorrow = datetime.now() + timedelta(days=1)
-            tips_date = tomorrow.date()
+            tips_date = self.tips_date or (datetime.now() + timedelta(days=1)).date()
             try:
                 from betting_engine.importers import import_forebet_tips
                 db_result = import_forebet_tips(tips_date, tips)
@@ -716,8 +726,7 @@ class ForebetScraper:
         
         # Save results to database
         if results:
-            yesterday = datetime.now() - timedelta(days=1)
-            results_date = yesterday.date()
+            results_date = self.results_date or (datetime.now() - timedelta(days=1)).date()
             try:
                 from betting_engine.importers import import_forebet_results
                 db_result = import_forebet_results(results_date, results)

@@ -5,7 +5,8 @@ Handles serialization of matches, odds, tips, results, and betting data.
 from rest_framework import serializers
 from .models import (
     BetwayOdds, ForebetTip, ForebetResult,
-    CombinedMatch, MarketSelection, SingleBetSnapshot, MergedMatch
+    CombinedMatch, MarketSelection, SingleBetSnapshot, MergedMatch,
+    BetSettlementSnapshot, MarketSelectorMLRun,
 )
 
 
@@ -88,6 +89,30 @@ class MergedMatchSerializer(serializers.ModelSerializer):
         model = MergedMatch
         fields = (
             'id', 'date', 'rows',
+            'created_at', 'updated_at'
+        )
+        read_only_fields = ('id', 'created_at', 'updated_at')
+
+
+class BetSettlementSnapshotSerializer(serializers.ModelSerializer):
+    """Serializer for BetSettlementSnapshot model."""
+    
+    class Meta:
+        model = BetSettlementSnapshot
+        fields = (
+            'id', 'date', 'settlements',
+            'created_at', 'updated_at'
+        )
+        read_only_fields = ('id', 'created_at', 'updated_at')
+
+
+class MarketSelectorMLRunSerializer(serializers.ModelSerializer):
+    """Serializer for MarketSelectorMLRun model."""
+
+    class Meta:
+        model = MarketSelectorMLRun
+        fields = (
+            'id', 'date', 'data',
             'created_at', 'updated_at'
         )
         read_only_fields = ('id', 'created_at', 'updated_at')

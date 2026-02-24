@@ -1,0 +1,79 @@
+{
+  "England": [
+    {"betway": "england_premier-league", "forebet": "football-tips-and-predictions-for-england/premier-league"},
+    {"betway": "england_efl-cup", "forebet": "football-tips-and-predictions-for-england/efl-cup"},
+    {"betway": "england_championship", "forebet": "football-tips-and-predictions-for-england/championship"},
+    {"betway": "england_efl-trophy", "forebet": "football-tips-and-predictions-for-england/efl-trophy"},
+    {"betway": "england_league-one", "forebet": "football-tips-and-predictions-for-england/league-one"},
+    {"betway": "england_fa-cup", "forebet": "football-tips-and-predictions-for-england/fa-cup"},
+    {"betway": "england_national-league", "forebet": "football-tips-and-predictions-for-england/national-league"},
+    {"betway": "england_league-two", "forebet": "football-tips-and-predictions-for-england/league-two"}
+  ],
+  "Spain": [
+    {"betway": "spain_la-liga", "forebet": "football-tips-and-predictions-for-spain/primera-division"},
+    {"betway": "spain_copa-del-rey", "forebet": "football-tips-and-predictions-for-spain/copa-del-rey"},
+    {"betway": "spain_laliga-2", "forebet": "football-tips-and-predictions-for-spain/segunda-division"},
+    {"betway": "spain_supercopa", "forebet": "football-tips-and-predictions-for-spain/super-copa"},
+    {"betway": "spain_primera-federacion", "forebet": "football-tips-and-predictions-for-spain/primera-division-rfef"},
+    {"betway": "spain_primera-federacion-women", "forebet": "football-tips-and-predictions-for-spain/primera-division-women"}
+  ],
+  "Germany": [
+    {"betway": "germany_bundesliga", "forebet": "football-tips-and-predictions-for-germany/bundesliga"},
+    {"betway": "germany_2-bundesliga", "forebet": "football-tips-and-predictions-for-germany/2-bundesliga"},
+    {"betway": "germany_dfb-pokal", "forebet": "football-tips-and-predictions-for-germany/dfb-pokal"},
+    {"betway": "germany_3-liga", "forebet": "football-tips-and-predictions-for-germany/3-liga"}
+  ],
+  "International_Clubs": [
+    {"betway": "international-clubs_uefa-champions-league", "forebet": "predictions-europe/uefa-champions-league"},
+    {"betway": "international-clubs_uefa-europa-league", "forebet": "predictions-europe/uefa-europa-league"},
+    {"betway": "international-clubs_caf-champions-league", "forebet": "predictions-africa/caf-champions-league"},
+    {"betway": "international-clubs_uefa-conference-league", "forebet": "predictions-europe/uefa-europa-conference-league"},
+    {"betway": "international-clubs_uefa-champions-league-women", "forebet": "predictions-europe/champions-league-women"},
+    {"betway": "international-clubs_afc-champions-league-two", "forebet": "predictions-asia/afc-cup"},
+    {"betway": "international-clubs_caf-confederations-cup", "forebet": "predictions-africa/caf-confederations-cup"},
+    {"betway": "international-clubs_conmebol-sudamericana", "forebet": "south-america/copa-sudamericana"},
+    {"betway": "international-clubs_conmebol-libertadores", "forebet": "south-america/copa-libertadores"},
+    {"betway": "international-clubs_concacaf-champions-cup", "forebet": "predictions-north-central-america/concacaf-champions-league"},
+    {"betway": "international-clubs_afc-challenge-league", "forebet": "predictions-asia/afc-champions-league"}
+  ],
+  "Internationals": [
+    {"betway": "international_fifa-world-cup", "forebet": "predictions-world/world-cup"},
+    {"betway": "international_africa-cup-of-nations", "forebet": "predictions-africa/cup-of-nations"}
+  ],
+  "Italy": [
+    {"betway": "italy_serie-a", "forebet": "football-tips-and-predictions-for-italy/serie-a"},
+    {"betway": "italy_coppa-italia", "forebet": "football-tips-and-predictions-for-italy/coppa-italia"},
+    {"betway": "italy_serie-b", "forebet": "football-tips-and-predictions-for-italy/serie-b"},
+    {"betway": "italy_serie-a-women", "forebet": "football-tips-and-predictions-for-italy/serie-a-women"},
+    {"betway": "italy_coppa-italia-women", "forebet": "football-tips-and-predictions-for-italy/coppa-italia-women"},
+    {"betway": "italy_coppa-italia-serie-c", "forebet": "football-tips-and-predictions-for-italy/serie-c"},
+    {"betway": "italy_primavera-1", "forebet": "football-tips-and-predictions-for-italy/primavera-1"}
+  ],
+  "France": [
+    {"betway": "france_ligue-1", "forebet": "football-tips-and-predictions-for-france/ligue1"},
+    {"betway": "france_coupe-de-france", "forebet": "football-tips-and-predictions-for-france/coupe-de-france"},
+    {"betway": "france_ligue-2", "forebet": "football-tips-and-predictions-for-france/ligue2"},
+    {"betway": "france_national", "forebet": "football-tips-and-predictions-for-france/national"},
+    {"betway": "france_premiere-ligue-women", "forebet": "football-tips-and-predictions-for-france/division-1-women"}
+  ],
+  "South_Africa": [
+    {"betway": "south-africa_premiership", "forebet": "football-tips-and-predictions-for-south-africa/premier-league"},
+    {"betway": "south-africa_championship", "forebet": "football-tips-and-predictions-for-south-africa/national-first-division"}
+  ],
+  "Portugal": [
+    {"betway": "portugal_liga-portugal", "forebet": "football-tips-and-predictions-for-portugal/liga-portugal"},
+    {"betway": "portugal_taca-de-portugal", "forebet": "football-tips-and-predictions-for-portugal/taca-de-portugal"},
+    {"betway": "portugal_liga-portugal-2", "forebet": "football-tips-and-predictions-for-portugal/liga-portugal-2"},
+    {"betway": "portugal_liga-portugal-3", "forebet": "football-tips-and-predictions-for-portugal/liga-3"},
+    {"betway": "portugal_campeonato-de-portugal", "forebet": "football-tips-and-predictions-for-portugal/campeonato-de-portugal"},
+    {"betway": "portugal_u23-liga-revelacao", "forebet": "football-tips-and-predictions-for-portugal/liga-revelacao-u23"}
+  ],
+  "Netherlands": [
+    {"betway": "netherlands_eredivisie", "forebet": "football-tips-and-predictions-for-netherlands/eredivisie"},
+    {"betway": "netherlands_knvb-beker", "forebet": "football-tips-and-predictions-for-netherlands/knvb-beker"},
+    {"betway": "netherlands_eerste-divisie", "forebet": "football-tips-and-predictions-for-netherlands/erstedivision"},
+    {"betway": "netherlands_derde-divisie", "forebet": "football-tips-and-predictions-for-netherlands/derde-divisie"},
+    {"betway": "netherlands_eredivisie-women", "forebet": "football-tips-and-predictions-for-netherlands/eredivisie-women"},
+    {"betway": "netherlands_knvb-beker-women", "forebet": "football-tips-and-predictions-for-netherlands/knvb-beker-women"}
+  ]
+}

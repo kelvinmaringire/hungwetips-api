@@ -10,12 +10,14 @@ from django.utils.dateparse import parse_date
 
 from .models import (
     BetwayOdds, ForebetTip, ForebetResult,
-    CombinedMatch, MarketSelection, SingleBetSnapshot, MergedMatch
+    CombinedMatch, MarketSelection, SingleBetSnapshot, MergedMatch,
+    BetSettlementSnapshot, MarketSelectorMLRun,
 )
 from .serializers import (
     BetwayOddsSerializer, ForebetTipSerializer,
     ForebetResultSerializer, CombinedMatchSerializer, MarketSelectionSerializer,
     SingleBetSnapshotSerializer, MergedMatchSerializer,
+    BetSettlementSnapshotSerializer, MarketSelectorMLRunSerializer,
     BetwayOddsUploadSerializer, ForebetTipsUploadSerializer,
     ForebetResultsUploadSerializer, CombinedMatchUploadSerializer,
     MergedMatchUploadSerializer, MarketSelectorsUploadSerializer,
@@ -143,26 +145,6 @@ class MarketSelectionListView(generics.ListAPIView):
             if date:
                 queryset = queryset.filter(date=date)
         
-        # Filter by team
-        team = self.request.query_params.get('team', None)
-        if team:
-            queryset = queryset.filter(
-                Q(home_team__icontains=team) | Q(away_team__icontains=team)
-            )
-        
-        # Filter by bet flags
-        home_over = self.request.query_params.get('home_over_bet', None)
-        if home_over is not None:
-            queryset = queryset.filter(home_over_bet=home_over.lower() == 'true')
-        
-        away_over = self.request.query_params.get('away_over_bet', None)
-        if away_over is not None:
-            queryset = queryset.filter(away_over_bet=away_over.lower() == 'true')
-        
-        over_1_5 = self.request.query_params.get('over_1_5_bet', None)
-        if over_1_5 is not None:
-            queryset = queryset.filter(over_1_5_bet=over_1_5.lower() == 'true')
-        
         return queryset
 
 
@@ -220,6 +202,52 @@ class MergedMatchDetailView(generics.RetrieveAPIView):
     """Retrieve a single MergedMatch record."""
     queryset = MergedMatch.objects.all()
     serializer_class = MergedMatchSerializer
+    permission_classes = [permissions.AllowAny]
+
+
+# BetSettlementSnapshot Views
+class BetSettlementSnapshotListView(generics.ListAPIView):
+    """List bet settlement snapshots with filtering."""
+    serializer_class = BetSettlementSnapshotSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        queryset = BetSettlementSnapshot.objects.all()
+        date_str = self.request.query_params.get('date', None)
+        if date_str:
+            date = parse_date(date_str)
+            if date:
+                queryset = queryset.filter(date=date)
+        return queryset
+
+
+class BetSettlementSnapshotDetailView(generics.RetrieveAPIView):
+    """Retrieve a single BetSettlementSnapshot record."""
+    queryset = BetSettlementSnapshot.objects.all()
+    serializer_class = BetSettlementSnapshotSerializer
+    permission_classes = [permissions.AllowAny]
+
+
+# MarketSelectorMLRun Views
+class MarketSelectorMLRunListView(generics.ListAPIView):
+    """List market selector ML runs with filtering."""
+    serializer_class = MarketSelectorMLRunSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        queryset = MarketSelectorMLRun.objects.all()
+        date_str = self.request.query_params.get('date', None)
+        if date_str:
+            date = parse_date(date_str)
+            if date:
+                queryset = queryset.filter(date=date)
+        return queryset
+
+
+class MarketSelectorMLRunDetailView(generics.RetrieveAPIView):
+    """Retrieve a single MarketSelectorMLRun record."""
+    queryset = MarketSelectorMLRun.objects.all()
+    serializer_class = MarketSelectorMLRunSerializer
     permission_classes = [permissions.AllowAny]
 
 
