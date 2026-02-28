@@ -842,7 +842,7 @@ class BetwayAutomation:
         all_bets = self.extract_bets_from_market_selectors(market_selectors_data)
         print(f"\n✓ Extracted {len(all_bets)} bets to place")
 
-        # Apply ML filter from market_selector_ml (keep top 75%)
+        # Apply ML filter from market_selector_ml (probability threshold 0.6)
         print("\n[STEP 1b] Applying market_selector_ml filter...")
         from betting_engine.services.market_selector_ml import MarketSelectorML
         from betting_engine.importers import import_market_selector_ml_run
@@ -855,7 +855,7 @@ class BetwayAutomation:
             for r in rejected_bets:
                 print(f"  - Rejected: {r.get('team', '?')} ({r.get('bet_type', '?')}) ml_win_prob={r.get('ml_win_prob', 0):.3f}")
         else:
-            print(f"✓ After ML filter: {len(all_bets)} bets (top 75%)")
+            print(f"✓ After ML filter: {len(all_bets)} bets (ml_win_prob >= 0.6)")
 
         # Save ML run for API
         def _summarize_bet(b):
@@ -867,7 +867,7 @@ class BetwayAutomation:
                 'total_before': bets_before_count,
                 'total_selected': len(all_bets),
                 'total_rejected': len(rejected_bets),
-                'keep_fraction': 0.75,
+                'threshold': 0.6,
             },
         }
         try:

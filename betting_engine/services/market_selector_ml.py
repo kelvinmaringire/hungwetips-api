@@ -1,6 +1,6 @@
 """
 ML-based filter for market selector bets.
-Trains on MergedMatch data, scores bets by predicted win probability, keeps top 75%.
+Trains on MergedMatch data, scores bets by predicted win probability, keeps bets with ml_win_prob >= 0.6.
 """
 import logging
 from pathlib import Path
@@ -18,7 +18,7 @@ HOME_DRAW_MIN_PROBABILITY = 70
 BET_TYPES = ['home_over_05', 'home_draw', 'over_1_5']
 MIN_TRAINING_SAMPLES = 30
 TOP_LEAGUES_COUNT = 20
-KEEP_FRACTION = 0.75
+ML_WIN_PROB_THRESHOLD = 0.6
 
 
 def _get(match, key, default=0):
@@ -95,7 +95,7 @@ def _get_odds(row, bet_type):
 class MarketSelectorML:
     """
     ML filter for market selector bets.
-    Trains on MergedMatch, filters bets to top 75% by predicted win probability.
+    Trains on MergedMatch, filters bets by probability threshold (ml_win_prob >= 0.6).
     """
 
     def __init__(self, models_dir=None):
@@ -267,7 +267,7 @@ class MarketSelectorML:
 
     def filter_bets(self, bets):
         """
-        Score each bet by ML win probability, keep top 75%.
+        Score each bet by ML win probability, keep bets with ml_win_prob >= 0.6.
         Returns (selected_bets, rejected_bets) - selected_bets for placement.
         If models missing, returns (bets, []).
         """
@@ -292,10 +292,8 @@ class MarketSelectorML:
                 proba = self._models[bt].predict_proba(X)[0]
                 bet['ml_win_prob'] = float(proba[1]) if len(proba) > 1 else float(proba[0])
 
-            ranked = sorted(bets, key=lambda b: b.get('ml_win_prob', 1.0), reverse=True)
-            keep_count = max(1, int(len(ranked) * KEEP_FRACTION))
-            selected = ranked[:keep_count]
-            rejected = ranked[keep_count:]
+            selected = [b for b in bets if b.get('ml_win_prob', 0) >= ML_WIN_PROB_THRESHOLD]
+            rejected = [b for b in bets if b.get('ml_win_prob', 0) < ML_WIN_PROB_THRESHOLD]
             return selected, rejected
         except Exception as e:
             logger.warning(f"ML filter failed: {e}. Returning all bets.")
